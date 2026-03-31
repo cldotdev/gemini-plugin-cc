@@ -65,7 +65,7 @@ After install, you should see:
 |---------|-------------|
 | `/gemini:review` | Code review on current work or branch. Supports `--wait`, `--background`, `--base <ref>`. |
 | `/gemini:adversarial-review` | Challenges design choices, not just bugs. Same flags as review plus custom focus text. |
-| `/gemini:rescue` | Delegate a task to Gemini via subagent. Supports `--background`, `--resume`, `--fresh`, `--model <pro\|flash\|flash-lite>`. |
+| `/gemini:rescue` | Delegate a task to Gemini via subagent. Supports `--background`, `--resume`, `--fresh`, `--model <pro\|flash\|pro-3\|flash-3>`. |
 | `/gemini:task` | Quick one-off task delegation. Supports `--background`, `--model`. |
 | `/gemini:status` | Show running and recent jobs. |
 | `/gemini:result` | Show output for a finished job. Includes session ID for `gemini resume`. |
@@ -91,11 +91,12 @@ After install, you should see:
 
 The `--model` flag accepts shortcuts or full model names:
 
+- `flash` → `gemini-2.5-flash` (default)
 - `pro` → `gemini-2.5-pro`
-- `flash` → `gemini-2.5-flash`
-- `flash-lite` → `gemini-2.5-flash-lite`
+- `flash-3` → `gemini-3-flash-preview`
+- `pro-3` → `gemini-3-pro-preview`
 
-If omitted, Gemini chooses based on task complexity. Any concrete model name (e.g. `gemini-3-flash-preview`) is passed through as-is.
+If omitted, defaults to `gemini-2.5-flash`. Any concrete model name (e.g. `gemini-3.1-pro-preview`) is passed through as-is.
 
 ## Review Gate
 
@@ -107,7 +108,7 @@ When enabled (`/gemini:setup --enable-review-gate`), the plugin runs a targeted 
 ## Development
 
 ```bash
-pnpm test        # run tests (40 tests, Node built-in runner)
+pnpm test        # run tests
 pnpm run ci      # type check + lint + test
 pnpm run lint:fix  # auto-fix lint issues
 ```
@@ -121,7 +122,7 @@ plugins/gemini/
 ├── commands/                     # Slash commands (.md)
 ├── hooks/                        # Session lifecycle + review gate hooks
 ├── prompts/                      # Prompt templates
-├── schemas/                      # Review output JSON schema
+├── schemas/                      # Output JSON schemas (review, errors)
 ├── scripts/                      # Companion CLI + runtime modules
 └── skills/                       # Claude Code skills
 ```
