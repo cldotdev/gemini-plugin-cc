@@ -114,9 +114,9 @@ export async function runTask(options = {}) {
     if (isRateLimit) {
       const modelLabel = model ?? "default";
       const suggestions = suggestAlternatives(model);
-      const structured = new Error(
+      const structured = /** @type {any} */ (new Error(
         `Model "${modelLabel}" hit rate limits after retries.`,
-      );
+      ));
       structured.code = "RATE_LIMITED";
       structured.model = modelLabel;
       structured.suggestions = suggestions;
@@ -127,9 +127,9 @@ export async function runTask(options = {}) {
     if (isMalformed) {
       const modelLabel = model ?? "default";
       const suggestions = suggestAlternatives(model);
-      const structured = new Error(
+      const structured = /** @type {any} */ (new Error(
         `Model "${modelLabel}" returned malformed output (not supported for ACP tasks).`,
-      );
+      ));
       structured.code = "MODEL_UNAVAILABLE";
       structured.model = modelLabel;
       structured.suggestions = suggestions;
@@ -157,6 +157,7 @@ export async function runTask(options = {}) {
  * @param {object} options.reviewTarget  from resolveReviewTarget()
  * @param {string} [options.systemPrompt]
  * @param {string} [options.focusText]
+ * @param {string} [options.model]
  * @param {string} [options.logFile]
  * @param {Function} [options.onProgress]
  * @param {object} [options.env]
