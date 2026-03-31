@@ -786,10 +786,21 @@ main().then(
   },
   (error) => {
     if (error?.code === "RATE_LIMITED" || error?.code === "MODEL_UNAVAILABLE") {
-      process.stderr.write(`${error.message}\n`);
+      const lines = [
+        `# Gemini Error`,
+        ``,
+        `Model: ${error.model ?? "unknown"}`,
+        `Status: ${error.code === "RATE_LIMITED" ? "rate limited" : "unavailable"}`,
+        ``,
+        error.message,
+      ];
       if (error.suggestions?.length > 0) {
-        process.stderr.write(`Suggested alternatives: ${error.suggestions.map((s) => `--model ${s}`).join(", ")}\n`);
+        lines.push(``, `Try instead:`);
+        for (const s of error.suggestions) {
+          lines.push(`- --model ${s}`);
+        }
       }
+      process.stderr.write(`${lines.join("\n")}\n`);
     } else {
       const message = error instanceof Error ? error.message : String(error);
       process.stderr.write(`${message}\n`);
