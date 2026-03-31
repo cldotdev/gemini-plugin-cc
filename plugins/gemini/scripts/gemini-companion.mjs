@@ -494,6 +494,7 @@ async function executeReviewRun(request) {
     ({ reviewResult, stopReason } = await runReview({
       cwd: request.cwd,
       reviewTarget: target,
+      model: request.model,
       logFile: request.logFile,
       onProgress: request.onProgress,
     }));
@@ -503,6 +504,7 @@ async function executeReviewRun(request) {
     ({ reviewResult, stopReason } = await runReview({
       cwd: request.cwd,
       reviewTarget: target,
+      model: request.model,
       focusText,
       systemPrompt: prompt,
       logFile: request.logFile,

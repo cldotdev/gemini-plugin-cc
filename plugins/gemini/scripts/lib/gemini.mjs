@@ -169,6 +169,7 @@ export async function runReview(options = {}) {
     reviewTarget,
     systemPrompt,
     focusText,
+    model,
     logFile,
     onProgress,
     env = process.env,
@@ -179,6 +180,7 @@ export async function runReview(options = {}) {
   const { output, stopReason } = await runTask({
     cwd,
     prompt: reviewPrompt,
+    model,
     modeId: "default",
     logFile,
     onProgress,
