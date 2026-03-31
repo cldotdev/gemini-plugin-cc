@@ -227,13 +227,19 @@ export function buildStatusSnapshot(cwd, options = {}) {
     .filter((job) => job.status !== "queued" && job.status !== "running" && job.id !== latestFinished?.id)
     .map((job) => enrichJob(job, { maxProgressLines }));
 
+  const oldestJob = [...jobs].sort((left, right) =>
+    String(left.createdAt ?? "").localeCompare(String(right.createdAt ?? ""))
+  )[0] ?? null;
+  const sessionRuntimeLabel = formatElapsedDuration(oldestJob?.createdAt ?? null) ?? "unknown";
+
   return {
     workspaceRoot,
     config,
     running,
     latestFinished,
     recent,
-    needsReview: Boolean(config.stopReviewGate)
+    needsReview: Boolean(config.stopReviewGate),
+    sessionRuntime: { label: sessionRuntimeLabel }
   };
 }
 

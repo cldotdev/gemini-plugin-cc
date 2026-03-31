@@ -45,6 +45,13 @@ import {
   SESSION_ID_ENV
 } from "./lib/tracked-jobs.mjs";
 import { resolveWorkspaceRoot } from "./lib/workspace.mjs";
+import {
+  renderCancelReport,
+  renderJobStatusReport,
+  renderSetupReport,
+  renderStatusReport,
+  renderStoredJobResult
+} from "./lib/render.mjs";
 
 const ROOT_DIR = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const DEFAULT_STATUS_WAIT_TIMEOUT_MS = 240000;
@@ -145,78 +152,15 @@ function firstMeaningfulLine(text, fallback) {
   return line ?? fallback;
 }
 
-// --- Inline renderers (render.mjs not yet available) ---
-
-function renderSetupReport(report) {
-  const lines = [];
-  lines.push(`Gemini CLI: ${report.gemini.available ? `available (${report.gemini.version ?? "unknown"})` : "NOT FOUND"}`);
-  lines.push(`Auth: ${report.auth.loggedIn ? "configured" : "NOT configured"}`);
-  lines.push(`Ready: ${report.ready ? "yes" : "no"}`);
-  if (report.nextSteps.length > 0) {
-    lines.push("\nNext steps:");
-    for (const step of report.nextSteps) {
-      lines.push(`  - ${step}`);
-    }
-  }
-  return lines.join("\n") + "\n";
-}
-
-function renderStatusReport(report) {
-  const jobs = report.jobs ?? [];
-  if (jobs.length === 0) {
-    return "No recent jobs.\n";
-  }
-  return jobs
-    .map((job) => `${job.id}  ${job.status.padEnd(12)}  ${job.title ?? job.kind ?? ""}`)
-    .join("\n") + "\n";
-}
-
-function renderJobStatusReport(job) {
-  if (!job) {
-    return "Job not found.\n";
-  }
-  return `${job.id}  ${job.status}  ${job.title ?? ""}\n`;
-}
-
-function renderStoredJobResult(job, storedJob) {
-  if (!storedJob) {
-    return `No stored result for ${job.id}.\n`;
-  }
-  const output = storedJob.payload?.rawOutput ?? storedJob.rawOutput ?? "";
-  return output ? `${output}\n` : `Job ${job.id} completed with no text output.\n`;
-}
-
-function renderCancelReport(job) {
-  return `Job ${job.id} cancelled.\n`;
-}
-
-function renderTaskResult(result) {
-  const output = result.payload?.rawOutput ?? "";
-  const failure = result.payload?.failureMessage ?? "";
-  if (result.exitStatus !== 0) {
-    return failure ? `Task failed: ${failure}\n` : "Task failed.\n";
-  }
-  return output ? `${output}\n` : "Task completed.\n";
-}
-
-function renderReviewResult(result) {
-  const review = result.payload?.reviewResult;
-  if (!review) {
-    return result.rendered ?? "Review completed.\n";
-  }
-  const lines = [`Verdict: ${review.verdict}`, `Summary: ${review.summary}`];
-  if (review.findings?.length > 0) {
-    lines.push(`Findings: ${review.findings.length}`);
-  }
-  return lines.join("\n") + "\n";
-}
-
 // --- Setup ---
 
 async function buildSetupReport(cwd) {
+  const nodeAvailable = binaryAvailable("node");
+  const npmAvailable = binaryAvailable("npm");
   const gemini = await getGeminiAvailability();
   const auth = await getGeminiLoginStatus();
   const ready = gemini.available && auth.loggedIn;
+  const config = getConfig(resolveWorkspaceRoot(cwd));
 
   const nextSteps = [];
   if (!gemini.available) {
@@ -226,7 +170,16 @@ async function buildSetupReport(cwd) {
     nextSteps.push("Configure auth: set GOOGLE_API_KEY or run `gemini auth login`.");
   }
 
-  return { ready, gemini, auth, nextSteps };
+  return {
+    ready,
+    node: { detail: nodeAvailable ? "available" : "NOT FOUND" },
+    npm: { detail: npmAvailable ? "available" : "NOT FOUND" },
+    gemini,
+    auth,
+    reviewGateEnabled: Boolean(config.stopReviewGate),
+    actionsTaken: [],
+    nextSteps
+  };
 }
 
 async function handleSetup(argv) {
