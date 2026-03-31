@@ -1,10 +1,8 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync } from "node:fs";
 
-const settingsPath = new URL(
-  "../.claude/settings.local.json",
-  import.meta.url
-).pathname;
+const settingsPath = new URL("../.claude/settings.local.json", import.meta.url)
+  .pathname;
 
 const settings = JSON.parse(readFileSync(settingsPath, "utf8"));
 
@@ -16,5 +14,5 @@ settings.extraKnownMarketplaces["gemini-plugin-local"] = {
   },
 };
 
-writeFileSync(settingsPath, JSON.stringify(settings, null, 2) + "\n");
+writeFileSync(settingsPath, `${JSON.stringify(settings, null, 2)}\n`);
 console.log("Done. Run /reload-plugins in Claude Code to load the plugin.");

@@ -16,7 +16,8 @@ function gitChecked(cwd, args, options = {}) {
 
 export function ensureGitRepository(cwd) {
   const result = git(cwd, ["rev-parse", "--show-toplevel"]);
-  const errorCode = result.error && "code" in result.error ? result.error.code : null;
+  const errorCode =
+    result.error && "code" in result.error ? result.error.code : null;
   if (errorCode === "ENOENT") {
     throw new Error("git is not installed. Install Git and retry.");
   }
@@ -41,17 +42,29 @@ export function detectDefaultBranch(cwd) {
 
   const candidates = ["main", "master", "trunk"];
   for (const candidate of candidates) {
-    const local = git(cwd, ["show-ref", "--verify", "--quiet", `refs/heads/${candidate}`]);
+    const local = git(cwd, [
+      "show-ref",
+      "--verify",
+      "--quiet",
+      `refs/heads/${candidate}`,
+    ]);
     if (local.status === 0) {
       return candidate;
     }
-    const remote = git(cwd, ["show-ref", "--verify", "--quiet", `refs/remotes/origin/${candidate}`]);
+    const remote = git(cwd, [
+      "show-ref",
+      "--verify",
+      "--quiet",
+      `refs/remotes/origin/${candidate}`,
+    ]);
     if (remote.status === 0) {
       return `origin/${candidate}`;
     }
   }
 
-  throw new Error("Unable to detect the repository default branch. Pass --base <ref> or use --scope working-tree.");
+  throw new Error(
+    "Unable to detect the repository default branch. Pass --base <ref> or use --scope working-tree.",
+  );
 }
 
 export function getCurrentBranch(cwd) {
@@ -59,15 +72,28 @@ export function getCurrentBranch(cwd) {
 }
 
 export function getWorkingTreeState(cwd) {
-  const staged = gitChecked(cwd, ["diff", "--cached", "--name-only"]).stdout.trim().split("\n").filter(Boolean);
-  const unstaged = gitChecked(cwd, ["diff", "--name-only"]).stdout.trim().split("\n").filter(Boolean);
-  const untracked = gitChecked(cwd, ["ls-files", "--others", "--exclude-standard"]).stdout.trim().split("\n").filter(Boolean);
+  const staged = gitChecked(cwd, ["diff", "--cached", "--name-only"])
+    .stdout.trim()
+    .split("\n")
+    .filter(Boolean);
+  const unstaged = gitChecked(cwd, ["diff", "--name-only"])
+    .stdout.trim()
+    .split("\n")
+    .filter(Boolean);
+  const untracked = gitChecked(cwd, [
+    "ls-files",
+    "--others",
+    "--exclude-standard",
+  ])
+    .stdout.trim()
+    .split("\n")
+    .filter(Boolean);
 
   return {
     staged,
     unstaged,
     untracked,
-    isDirty: staged.length > 0 || unstaged.length > 0 || untracked.length > 0
+    isDirty: staged.length > 0 || unstaged.length > 0 || untracked.length > 0,
   };
 }
 
@@ -84,7 +110,7 @@ export function resolveReviewTarget(cwd, options = {}) {
       mode: "branch",
       label: `branch diff against ${baseRef}`,
       baseRef,
-      explicit: true
+      explicit: true,
     };
   }
 
@@ -92,13 +118,13 @@ export function resolveReviewTarget(cwd, options = {}) {
     return {
       mode: "working-tree",
       label: "working tree diff",
-      explicit: true
+      explicit: true,
     };
   }
 
   if (!supportedScopes.has(requestedScope)) {
     throw new Error(
-      `Unsupported review scope "${requestedScope}". Use one of: auto, working-tree, branch, or pass --base <ref>.`
+      `Unsupported review scope "${requestedScope}". Use one of: auto, working-tree, branch, or pass --base <ref>.`,
     );
   }
 
@@ -108,7 +134,7 @@ export function resolveReviewTarget(cwd, options = {}) {
       mode: "branch",
       label: `branch diff against ${detectedBase}`,
       baseRef: detectedBase,
-      explicit: true
+      explicit: true,
     };
   }
 
@@ -116,7 +142,7 @@ export function resolveReviewTarget(cwd, options = {}) {
     return {
       mode: "working-tree",
       label: "working tree diff",
-      explicit: false
+      explicit: false,
     };
   }
 
@@ -125,12 +151,14 @@ export function resolveReviewTarget(cwd, options = {}) {
     mode: "branch",
     label: `branch diff against ${detectedBase}`,
     baseRef: detectedBase,
-    explicit: false
+    explicit: false,
   };
 }
 
 function formatSection(title, body) {
-  return [`## ${title}`, "", body.trim() ? body.trim() : "(none)", ""].join("\n");
+  return [`## ${title}`, "", body.trim() ? body.trim() : "(none)", ""].join(
+    "\n",
+  );
 }
 
 function formatUntrackedFile(cwd, relativePath) {
@@ -145,36 +173,73 @@ function formatUntrackedFile(cwd, relativePath) {
     return `### ${relativePath}\n(skipped: binary file)`;
   }
 
-  return [`### ${relativePath}`, "```", buffer.toString("utf8").trimEnd(), "```"].join("\n");
+  return [
+    `### ${relativePath}`,
+    "```",
+    buffer.toString("utf8").trimEnd(),
+    "```",
+  ].join("\n");
 }
 
 function collectWorkingTreeContext(cwd, state) {
   const status = gitChecked(cwd, ["status", "--short"]).stdout.trim();
-  const stagedDiff = gitChecked(cwd, ["diff", "--cached", "--binary", "--no-ext-diff", "--submodule=diff"]).stdout;
-  const unstagedDiff = gitChecked(cwd, ["diff", "--binary", "--no-ext-diff", "--submodule=diff"]).stdout;
-  const untrackedBody = state.untracked.map((file) => formatUntrackedFile(cwd, file)).join("\n\n");
+  const stagedDiff = gitChecked(cwd, [
+    "diff",
+    "--cached",
+    "--binary",
+    "--no-ext-diff",
+    "--submodule=diff",
+  ]).stdout;
+  const unstagedDiff = gitChecked(cwd, [
+    "diff",
+    "--binary",
+    "--no-ext-diff",
+    "--submodule=diff",
+  ]).stdout;
+  const untrackedBody = state.untracked
+    .map((file) => formatUntrackedFile(cwd, file))
+    .join("\n\n");
 
   const parts = [
     formatSection("Git Status", status),
     formatSection("Staged Diff", stagedDiff),
     formatSection("Unstaged Diff", unstagedDiff),
-    formatSection("Untracked Files", untrackedBody)
+    formatSection("Untracked Files", untrackedBody),
   ];
 
   return {
     mode: "working-tree",
     summary: `Reviewing ${state.staged.length} staged, ${state.unstaged.length} unstaged, and ${state.untracked.length} untracked file(s).`,
-    content: parts.join("\n")
+    content: parts.join("\n"),
   };
 }
 
 function collectBranchContext(cwd, baseRef) {
-  const mergeBase = gitChecked(cwd, ["merge-base", "HEAD", baseRef]).stdout.trim();
+  const mergeBase = gitChecked(cwd, [
+    "merge-base",
+    "HEAD",
+    baseRef,
+  ]).stdout.trim();
   const commitRange = `${mergeBase}..HEAD`;
   const currentBranch = getCurrentBranch(cwd);
-  const logOutput = gitChecked(cwd, ["log", "--oneline", "--decorate", commitRange]).stdout.trim();
-  const diffStat = gitChecked(cwd, ["diff", "--stat", commitRange]).stdout.trim();
-  const diff = gitChecked(cwd, ["diff", "--binary", "--no-ext-diff", "--submodule=diff", commitRange]).stdout;
+  const logOutput = gitChecked(cwd, [
+    "log",
+    "--oneline",
+    "--decorate",
+    commitRange,
+  ]).stdout.trim();
+  const diffStat = gitChecked(cwd, [
+    "diff",
+    "--stat",
+    commitRange,
+  ]).stdout.trim();
+  const diff = gitChecked(cwd, [
+    "diff",
+    "--binary",
+    "--no-ext-diff",
+    "--submodule=diff",
+    commitRange,
+  ]).stdout;
 
   return {
     mode: "branch",
@@ -182,8 +247,8 @@ function collectBranchContext(cwd, baseRef) {
     content: [
       formatSection("Commit Log", logOutput),
       formatSection("Diff Stat", diffStat),
-      formatSection("Branch Diff", diff)
-    ].join("\n")
+      formatSection("Branch Diff", diff),
+    ].join("\n"),
   };
 }
 
@@ -204,6 +269,6 @@ export function collectReviewContext(cwd, target) {
     repoRoot,
     branch: currentBranch,
     target,
-    ...details
+    ...details,
   };
 }

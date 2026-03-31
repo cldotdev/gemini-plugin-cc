@@ -1,10 +1,11 @@
 // tests/acp-client.test.mjs
-import test from "node:test";
+
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import path from "node:path";
 import fs from "node:fs";
 import os from "node:os";
+import path from "node:path";
+import test from "node:test";
 import { AcpClient } from "../plugins/gemini/scripts/lib/acp-client.mjs";
 
 function makeTempDir() {
@@ -12,14 +13,17 @@ function makeTempDir() {
 }
 
 function writeScript(dir, name, src) {
-  const p = path.join(dir, name + ".mjs");
+  const p = path.join(dir, `${name}.mjs`);
   fs.writeFileSync(p, src, "utf8");
   return p;
 }
 
 test("AcpClient resolves requests by id", async () => {
   const dir = makeTempDir();
-  const script = writeScript(dir, "echo-server", `
+  const script = writeScript(
+    dir,
+    "echo-server",
+    `
 import readline from "node:readline";
 const rl = readline.createInterface({ input: process.stdin });
 rl.on("line", (line) => {
@@ -28,8 +32,11 @@ rl.on("line", (line) => {
     process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: { serverInfo: { name: "fake" } } }) + "\\n");
   }
 });
-`);
-  const proc = spawn(process.execPath, [script], { stdio: ["pipe","pipe","inherit"] });
+`,
+  );
+  const proc = spawn(process.execPath, [script], {
+    stdio: ["pipe", "pipe", "inherit"],
+  });
   const client = new AcpClient(proc);
   const result = await client.initialize();
   assert.ok(result.serverInfo.name === "fake");
@@ -39,17 +46,24 @@ rl.on("line", (line) => {
 test("AcpClient rejects pending requests when process exits", async () => {
   const dir = makeTempDir();
   const script = writeScript(dir, "crash-server", `process.exit(1);`);
-  const proc = spawn(process.execPath, [script], { stdio: ["pipe","pipe","inherit"] });
+  const proc = spawn(process.execPath, [script], {
+    stdio: ["pipe", "pipe", "inherit"],
+  });
   const client = new AcpClient(proc);
   await assert.rejects(
     () => client.initialize(),
-    (err) => { return err.code === "ACP_PROCESS_EXIT"; }
+    (err) => {
+      return err.code === "ACP_PROCESS_EXIT";
+    },
   );
 });
 
 test("AcpClient dispatches session/update notifications", async () => {
   const dir = makeTempDir();
-  const script = writeScript(dir, "notify-server", `
+  const script = writeScript(
+    dir,
+    "notify-server",
+    `
 import readline from "node:readline";
 const rl = readline.createInterface({ input: process.stdin });
 rl.on("line", (line) => {
@@ -59,8 +73,11 @@ rl.on("line", (line) => {
     process.stdout.write(JSON.stringify({ jsonrpc: "2.0", id: msg.id, result: {} }) + "\\n");
   }
 });
-`);
-  const proc = spawn(process.execPath, [script], { stdio: ["pipe","pipe","inherit"] });
+`,
+  );
+  const proc = spawn(process.execPath, [script], {
+    stdio: ["pipe", "pipe", "inherit"],
+  });
   const client = new AcpClient(proc);
   const updates = [];
   client.onUpdate((p) => updates.push(p));
@@ -72,7 +89,10 @@ rl.on("line", (line) => {
 
 test("AcpClient handles server-to-client requests", async () => {
   const dir = makeTempDir();
-  const script = writeScript(dir, "permission-server", `
+  const script = writeScript(
+    dir,
+    "permission-server",
+    `
 import readline from "node:readline";
 const rl = readline.createInterface({ input: process.stdin });
 const lines = [];
@@ -86,8 +106,11 @@ rl.on("line", (line) => {
     }, 50);
   }
 });
-`);
-  const proc = spawn(process.execPath, [script], { stdio: ["pipe","pipe","inherit"] });
+`,
+  );
+  const proc = spawn(process.execPath, [script], {
+    stdio: ["pipe", "pipe", "inherit"],
+  });
   const client = new AcpClient(proc);
   const seen = [];
   client.onServerRequest("session/request_permission", async (params) => {

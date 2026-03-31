@@ -1,7 +1,7 @@
 // plugins/gemini/scripts/lib/acp-lifecycle.mjs
 import { spawn } from "node:child_process";
-import { runCommand } from "./process.mjs";
 import { AcpClient, installDefaultHandlers } from "./acp-client.mjs";
+import { runCommand } from "./process.mjs";
 
 // Cache detected flag per binary to avoid repeated --version calls
 const flagCache = new Map();
@@ -58,14 +58,17 @@ export async function spawnAcpClient(opts = {}) {
   const proc = spawn(binary, [flag], {
     cwd,
     env,
-    stdio: ["pipe", "pipe", "inherit"]
+    stdio: ["pipe", "pipe", "inherit"],
   });
 
   const client = new AcpClient(proc);
   installDefaultHandlers(client);
 
   const initTimeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error("ACP initialize timed out after 10s")), 10000)
+    setTimeout(
+      () => reject(new Error("ACP initialize timed out after 10s")),
+      10000,
+    ),
   );
   await Promise.race([client.initialize(), initTimeout]);
 

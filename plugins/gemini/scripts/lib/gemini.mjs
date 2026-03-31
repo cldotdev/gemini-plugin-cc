@@ -2,9 +2,13 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  createSession,
+  resumeSession,
+  spawnAcpClient,
+} from "./acp-lifecycle.mjs";
 import { binaryAvailable, runCommand } from "./process.mjs";
-import { createSession, resumeSession, spawnAcpClient } from "./acp-lifecycle.mjs";
-import { appendLogLine, appendLogBlock } from "./tracked-jobs.mjs";
+import { appendLogBlock, appendLogLine } from "./tracked-jobs.mjs";
 
 const PLUGIN_LIB_DIR = path.dirname(fileURLToPath(import.meta.url));
 const SCHEMAS_DIR = path.resolve(PLUGIN_LIB_DIR, "..", "..", "schemas");
@@ -25,7 +29,10 @@ export async function getGeminiLoginStatus() {
   if (result.status !== 0) {
     return { loggedIn: false, detail: "gemini CLI not responding." };
   }
-  return { loggedIn: true, detail: "Auth assumed configured (GOOGLE_API_KEY or ADC)." };
+  return {
+    loggedIn: true,
+    detail: "Auth assumed configured (GOOGLE_API_KEY or ADC).",
+  };
 }
 
 /**
@@ -42,7 +49,7 @@ export async function getGeminiLoginStatus() {
  * @param {number} [options.timeoutMs=120000]
  * @returns {Promise<{sessionId: string, output: string, stopReason: string}>}
  */
-// @ts-ignore
+// @ts-expect-error
 export async function runTask(options = {}) {
   const {
     cwd = process.cwd(),
@@ -59,7 +66,11 @@ export async function runTask(options = {}) {
   let client, sessionId;
 
   if (resumeSessionId) {
-    ({ client, sessionId } = await resumeSession(resumeSessionId, { cwd, model, env }));
+    ({ client, sessionId } = await resumeSession(resumeSessionId, {
+      cwd,
+      model,
+      env,
+    }));
   } else {
     ({ client, sessionId } = await createSession({ cwd, model, modeId, env }));
   }
@@ -70,7 +81,10 @@ export async function runTask(options = {}) {
     if (params?.sessionId !== sessionId) return;
     const update = params.update;
     if (!update) return;
-    if (update.sessionUpdate === "agent_message_chunk" && update.content?.text) {
+    if (
+      update.sessionUpdate === "agent_message_chunk" &&
+      update.content?.text
+    ) {
       chunks.push(update.content.text);
       appendLogLine(logFile, update.content.text);
       onProgress?.({ message: update.content.text, phase: "streaming" });
@@ -94,14 +108,14 @@ export async function runTask(options = {}) {
     const timeoutPromise = new Promise((_, reject) =>
       setTimeout(() => {
         const err = new Error("Gemini prompt timed out");
-        // @ts-ignore
+        // @ts-expect-error
         err.code = "PROMPT_TIMEOUT";
         reject(err);
-      }, timeoutMs)
+      }, timeoutMs),
     );
     result = await Promise.race([
       client.prompt(sessionId, [{ type: "text", text: prompt }]),
-      timeoutPromise
+      timeoutPromise,
     ]);
   } finally {
     removeUpdate();
@@ -129,7 +143,7 @@ export async function runTask(options = {}) {
  * @param {number} [options.timeoutMs=300000]
  * @returns {Promise<{reviewResult: object, stopReason: string}>}
  */
-// @ts-ignore
+// @ts-expect-error
 export async function runReview(options = {}) {
   const {
     cwd = process.cwd(),
@@ -164,12 +178,16 @@ function buildReviewPrompt(reviewTarget, systemPrompt, focusText) {
   const parts = [];
   if (systemPrompt) parts.push(systemPrompt);
   if (reviewTarget?.diff) {
-    parts.push(`\n\nGit diff to review:\n\`\`\`diff\n${reviewTarget.diff}\n\`\`\``);
+    parts.push(
+      `\n\nGit diff to review:\n\`\`\`diff\n${reviewTarget.diff}\n\`\`\``,
+    );
   }
   if (focusText) {
     parts.push(`\n\nAdditional focus: ${focusText}`);
   }
-  parts.push(`\n\nRespond with ONLY valid JSON matching this schema — no prose, no markdown fences:\n{"verdict":"no-issues"|"needs-attention"|"no-ship","summary":"...","findings":[{"severity":"critical|high|medium|low","title":"...","body":"...","file":"...","line_start":N,"recommendation":"..."}],"next_steps":["..."]}`);
+  parts.push(
+    `\n\nRespond with ONLY valid JSON matching this schema — no prose, no markdown fences:\n{"verdict":"no-issues"|"needs-attention"|"no-ship","summary":"...","findings":[{"severity":"critical|high|medium|low","title":"...","body":"...","file":"...","line_start":N,"recommendation":"..."}],"next_steps":["..."]}`,
+  );
   return parts.join("");
 }
 
@@ -179,7 +197,8 @@ function buildReviewPrompt(reviewTarget, systemPrompt, focusText) {
  * @returns {object} Normalized review result
  */
 export function parseReviewOutput(raw) {
-  const stripped = raw.trim()
+  const stripped = raw
+    .trim()
     .replace(/^```(?:json)?\s*/i, "")
     .replace(/\s*```$/i, "")
     .trim();
@@ -189,9 +208,9 @@ export function parseReviewOutput(raw) {
     parsed = JSON.parse(stripped);
   } catch (err) {
     const e = new Error(`Review output is not valid JSON: ${err.message}`);
-    // @ts-ignore
+    // @ts-expect-error
     e.code = "REVIEW_PARSE_ERROR";
-    // @ts-ignore
+    // @ts-expect-error
     e.raw = raw;
     throw e;
   }
@@ -200,9 +219,9 @@ export function parseReviewOutput(raw) {
   const validationError = validateAgainstSchema(parsed, schema);
   if (validationError) {
     const e = new Error(`Review output failed validation: ${validationError}`);
-    // @ts-ignore
+    // @ts-expect-error
     e.code = "REVIEW_VALIDATION_ERROR";
-    // @ts-ignore
+    // @ts-expect-error
     e.parsed = parsed;
     throw e;
   }
@@ -214,7 +233,7 @@ function validateAgainstSchema(data, schema) {
   if (!data || typeof data !== "object" || Array.isArray(data)) {
     return "Expected a top-level JSON object.";
   }
-  for (const field of (schema.required ?? [])) {
+  for (const field of schema.required ?? []) {
     if (!(field in data)) return `Missing required field: "${field}"`;
   }
   const verdictEnum = schema.properties?.verdict?.enum;
@@ -235,16 +254,24 @@ function normalizeReviewResult(data) {
     summary: data.summary.trim(),
     findings: data.findings.map((f, i) => ({
       severity: typeof f.severity === "string" ? f.severity : "low",
-      title: typeof f.title === "string" && f.title.trim() ? f.title.trim() : `Finding ${i + 1}`,
+      title:
+        typeof f.title === "string" && f.title.trim()
+          ? f.title.trim()
+          : `Finding ${i + 1}`,
       body: typeof f.body === "string" ? f.body.trim() : "",
       file: typeof f.file === "string" ? f.file.trim() : "unknown",
-      line_start: Number.isInteger(f.line_start) && f.line_start > 0 ? f.line_start : null,
-      line_end: Number.isInteger(f.line_end) && f.line_end > 0 ? f.line_end : null,
-      recommendation: typeof f.recommendation === "string" ? f.recommendation.trim() : ""
+      line_start:
+        Number.isInteger(f.line_start) && f.line_start > 0
+          ? f.line_start
+          : null,
+      line_end:
+        Number.isInteger(f.line_end) && f.line_end > 0 ? f.line_end : null,
+      recommendation:
+        typeof f.recommendation === "string" ? f.recommendation.trim() : "",
     })),
     next_steps: data.next_steps
       .filter((s) => typeof s === "string" && s.trim())
-      .map((s) => s.trim())
+      .map((s) => s.trim()),
   };
 }
 

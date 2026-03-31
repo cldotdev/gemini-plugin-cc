@@ -13,7 +13,10 @@ export class AcpClient {
 
   constructor(proc) {
     this.#proc = proc;
-    this.#rl = readline.createInterface({ input: proc.stdout, crlfDelay: Infinity });
+    this.#rl = readline.createInterface({
+      input: proc.stdout,
+      crlfDelay: Infinity,
+    });
     this.#rl.on("line", (line) => this.#onLine(line));
     proc.on("exit", (code) => this.#onExit(code));
   }
@@ -30,13 +33,19 @@ export class AcpClient {
   #onLine(line) {
     if (!line.trim()) return;
     let msg;
-    try { msg = JSON.parse(line); } catch { return; }
+    try {
+      msg = JSON.parse(line);
+    } catch {
+      return;
+    }
 
     // Notification (no id, has method)
     if (msg.method !== undefined && msg.id === undefined) {
       if (msg.method === "session/update") {
         for (const h of this.#updateHandlers) {
-          try { h(msg.params); } catch {}
+          try {
+            h(msg.params);
+          } catch {}
         }
       }
       return;
@@ -49,12 +58,19 @@ export class AcpClient {
         Promise.resolve()
           .then(() => handler(msg.params))
           .then((result) => this.#send({ jsonrpc: "2.0", id: msg.id, result }))
-          .catch((err) => this.#send({
-            jsonrpc: "2.0", id: msg.id,
-            error: { code: -32000, message: String(err?.message ?? err) }
-          }));
+          .catch((err) =>
+            this.#send({
+              jsonrpc: "2.0",
+              id: msg.id,
+              error: { code: -32000, message: String(err?.message ?? err) },
+            }),
+          );
       } else {
-        this.#send({ jsonrpc: "2.0", id: msg.id, error: { code: -32601, message: "Method not found" } });
+        this.#send({
+          jsonrpc: "2.0",
+          id: msg.id,
+          error: { code: -32601, message: "Method not found" },
+        });
       }
       return;
     }
@@ -66,9 +82,9 @@ export class AcpClient {
       this.#pending.delete(msg.id);
       if (msg.error) {
         const err = new Error(msg.error.message);
-        // @ts-ignore
+        // @ts-expect-error
         err.code = msg.error.code;
-        // @ts-ignore
+        // @ts-expect-error
         err.data = msg.error.data;
         pending.reject(err);
       } else {
@@ -81,9 +97,9 @@ export class AcpClient {
     if (this.#closed) return;
     this.#closed = true;
     const err = new Error(`ACP process exited unexpectedly (code ${code})`);
-    // @ts-ignore
+    // @ts-expect-error
     err.code = "ACP_PROCESS_EXIT";
-    // @ts-ignore
+    // @ts-expect-error
     err.exitCode = code;
     for (const { reject } of this.#pending.values()) {
       reject(err);
@@ -93,7 +109,9 @@ export class AcpClient {
 
   #send(msg) {
     if (this.#closed) return;
-    try { this.#proc.stdin.write(JSON.stringify(msg) + "\n"); } catch {}
+    try {
+      this.#proc.stdin.write(`${JSON.stringify(msg)}\n`);
+    } catch {}
   }
 
   #request(method, params) {
@@ -112,7 +130,7 @@ export class AcpClient {
     return this.#request("initialize", {
       protocolVersion: 1,
       clientInfo: { name: "gemini-companion", version: "1.0.0" },
-      clientCapabilities: {}
+      clientCapabilities: {},
     });
   }
 
@@ -127,7 +145,7 @@ export class AcpClient {
   async prompt(sessionId, parts) {
     return this.#request("session/prompt", {
       sessionId,
-      prompt: parts.map(p => ({ type: "text", text: p.text }))
+      prompt: parts.map((p) => ({ type: "text", text: p.text })),
     });
   }
 
@@ -151,27 +169,47 @@ export class AcpClient {
     const { phase1Ms = 100, phase2Ms = 1500 } = opts;
     if (this.#closed) return;
     this.#closed = true;
-    try { this.#rl.close(); } catch {}
-    try { this.#proc.stdin.end(); } catch {}
+    try {
+      this.#rl.close();
+    } catch {}
+    try {
+      this.#proc.stdin.end();
+    } catch {}
     await new Promise((resolve) => {
       const finish = () => {
-        try { this.#proc.stdout.destroy(); } catch {}
+        try {
+          this.#proc.stdout.destroy();
+        } catch {}
         resolve();
       };
       const t1 = setTimeout(() => {
-        try { this.#proc.kill("SIGTERM"); } catch {}
+        try {
+          this.#proc.kill("SIGTERM");
+        } catch {}
         const t2 = setTimeout(() => {
-          try { this.#proc.kill("SIGKILL"); } catch {}
+          try {
+            this.#proc.kill("SIGKILL");
+          } catch {}
           finish();
         }, phase2Ms);
-        this.#proc.once("exit", () => { clearTimeout(t2); finish(); });
+        this.#proc.once("exit", () => {
+          clearTimeout(t2);
+          finish();
+        });
       }, phase1Ms);
-      this.#proc.once("exit", () => { clearTimeout(t1); finish(); });
+      this.#proc.once("exit", () => {
+        clearTimeout(t1);
+        finish();
+      });
     });
   }
 
-  get pid() { return this.#proc.pid; }
-  get exited() { return this.#closed; }
+  get pid() {
+    return this.#proc.pid;
+  }
+  get exited() {
+    return this.#closed;
+  }
 }
 
 export function installDefaultHandlers(client) {
@@ -181,11 +219,14 @@ export function installDefaultHandlers(client) {
     return { content };
   });
 
-  client.onServerRequest("fs/write_text_file", async ({ path: filePath, content }) => {
-    const { writeFile } = await import("node:fs/promises");
-    await writeFile(filePath, content, "utf8");
-    return {};
-  });
+  client.onServerRequest(
+    "fs/write_text_file",
+    async ({ path: filePath, content }) => {
+      const { writeFile } = await import("node:fs/promises");
+      await writeFile(filePath, content, "utf8");
+      return {};
+    },
+  );
 
   client.onServerRequest("session/request_permission", async (_params) => {
     return { approved: false };

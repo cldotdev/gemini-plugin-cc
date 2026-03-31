@@ -8,7 +8,9 @@ export const DEFAULT_MAX_STATUS_JOBS = 8;
 export const DEFAULT_MAX_PROGRESS_LINES = 4;
 
 export function sortJobsNewestFirst(jobs) {
-  return [...jobs].sort((left, right) => String(right.updatedAt ?? "").localeCompare(String(left.updatedAt ?? "")));
+  return [...jobs].sort((left, right) =>
+    String(right.updatedAt ?? "").localeCompare(String(left.updatedAt ?? "")),
+  );
 }
 
 function getCurrentSessionId(options = {}) {
@@ -51,13 +53,21 @@ function stripLogPrefix(line) {
 
 function isProgressBlockTitle(line) {
   return (
-    ["Final output", "Assistant message", "Reasoning summary", "Review output"].includes(line) ||
+    [
+      "Final output",
+      "Assistant message",
+      "Reasoning summary",
+      "Review output",
+    ].includes(line) ||
     /^Subagent .+ message$/.test(line) ||
     /^Subagent .+ reasoning summary$/.test(line)
   );
 }
 
-export function readJobProgressPreview(logFile, maxLines = DEFAULT_MAX_PROGRESS_LINES) {
+export function readJobProgressPreview(
+  logFile,
+  maxLines = DEFAULT_MAX_PROGRESS_LINES,
+) {
   if (!logFile || !fs.existsSync(logFile)) {
     return [];
   }
@@ -101,7 +111,7 @@ function formatElapsedDuration(startValue, endValue = null) {
 
 function looksLikeVerificationCommand(line) {
   return /\b(test|tests|lint|build|typecheck|type-check|check|verify|validate|pytest|jest|vitest|cargo test|npm test|pnpm test|yarn test|go test|mvn test|gradle test|tsc|eslint|ruff)\b/i.test(
-    line
+    line,
   );
 }
 
@@ -121,13 +131,21 @@ function inferLegacyJobPhase(job, progressPreview = []) {
 
   for (let index = progressPreview.length - 1; index >= 0; index -= 1) {
     const line = progressPreview[index].toLowerCase();
-    if (line.startsWith("starting gemini") || line.startsWith("thread ready") || line.startsWith("turn started")) {
+    if (
+      line.startsWith("starting gemini") ||
+      line.startsWith("thread ready") ||
+      line.startsWith("turn started")
+    ) {
       return "starting";
     }
     if (line.startsWith("reviewer started") || line.includes("review mode")) {
       return "reviewing";
     }
-    if (line.startsWith("searching:") || line.startsWith("calling ") || line.startsWith("running tool:")) {
+    if (
+      line.startsWith("searching:") ||
+      line.startsWith("calling ") ||
+      line.startsWith("running tool:")
+    ) {
       return "investigating";
     }
     if (line.startsWith("starting collaboration tool:")) {
@@ -158,24 +176,36 @@ function inferLegacyJobPhase(job, progressPreview = []) {
 }
 
 export function enrichJob(job, options = {}) {
-  const maxProgressLines = options.maxProgressLines ?? DEFAULT_MAX_PROGRESS_LINES;
+  const maxProgressLines =
+    options.maxProgressLines ?? DEFAULT_MAX_PROGRESS_LINES;
   const enriched = {
     ...job,
     kindLabel: getJobTypeLabel(job),
     progressPreview:
-      job.status === "queued" || job.status === "running" || job.status === "failed"
+      job.status === "queued" ||
+      job.status === "running" ||
+      job.status === "failed"
         ? readJobProgressPreview(job.logFile, maxProgressLines)
         : [],
-    elapsed: formatElapsedDuration(job.startedAt ?? job.createdAt, job.completedAt ?? null),
+    elapsed: formatElapsedDuration(
+      job.startedAt ?? job.createdAt,
+      job.completedAt ?? null,
+    ),
     duration:
-      job.status === "completed" || job.status === "failed" || job.status === "cancelled"
-        ? formatElapsedDuration(job.startedAt ?? job.createdAt, job.completedAt ?? job.updatedAt)
-        : null
+      job.status === "completed" ||
+      job.status === "failed" ||
+      job.status === "cancelled"
+        ? formatElapsedDuration(
+            job.startedAt ?? job.createdAt,
+            job.completedAt ?? job.updatedAt,
+          )
+        : null,
   };
 
   return {
     ...enriched,
-    phase: enriched.phase ?? inferLegacyJobPhase(enriched, enriched.progressPreview)
+    phase:
+      enriched.phase ?? inferLegacyJobPhase(enriched, enriched.progressPreview),
   };
 }
 
@@ -203,34 +233,52 @@ function matchJobReference(jobs, reference, predicate = () => true) {
     return prefixMatches[0];
   }
   if (prefixMatches.length > 1) {
-    throw new Error(`Job reference "${reference}" is ambiguous. Use a longer job id.`);
+    throw new Error(
+      `Job reference "${reference}" is ambiguous. Use a longer job id.`,
+    );
   }
 
-  throw new Error(`No job found for "${reference}". Run /gemini:status to list known jobs.`);
+  throw new Error(
+    `No job found for "${reference}". Run /gemini:status to list known jobs.`,
+  );
 }
 
 export function buildStatusSnapshot(cwd, options = {}) {
   const workspaceRoot = resolveWorkspaceRoot(cwd);
   const config = getConfig(workspaceRoot);
-  const jobs = sortJobsNewestFirst(filterJobsForCurrentSession(listJobs(workspaceRoot), options));
+  const jobs = sortJobsNewestFirst(
+    filterJobsForCurrentSession(listJobs(workspaceRoot), options),
+  );
   const maxJobs = options.maxJobs ?? DEFAULT_MAX_STATUS_JOBS;
-  const maxProgressLines = options.maxProgressLines ?? DEFAULT_MAX_PROGRESS_LINES;
+  const maxProgressLines =
+    options.maxProgressLines ?? DEFAULT_MAX_PROGRESS_LINES;
 
   const running = jobs
     .filter((job) => job.status === "queued" || job.status === "running")
     .map((job) => enrichJob(job, { maxProgressLines }));
 
-  const latestFinishedRaw = jobs.find((job) => job.status !== "queued" && job.status !== "running") ?? null;
-  const latestFinished = latestFinishedRaw ? enrichJob(latestFinishedRaw, { maxProgressLines }) : null;
+  const latestFinishedRaw =
+    jobs.find((job) => job.status !== "queued" && job.status !== "running") ??
+    null;
+  const latestFinished = latestFinishedRaw
+    ? enrichJob(latestFinishedRaw, { maxProgressLines })
+    : null;
 
   const recent = (options.all ? jobs : jobs.slice(0, maxJobs))
-    .filter((job) => job.status !== "queued" && job.status !== "running" && job.id !== latestFinished?.id)
+    .filter(
+      (job) =>
+        job.status !== "queued" &&
+        job.status !== "running" &&
+        job.id !== latestFinished?.id,
+    )
     .map((job) => enrichJob(job, { maxProgressLines }));
 
-  const oldestJob = [...jobs].sort((left, right) =>
-    String(left.createdAt ?? "").localeCompare(String(right.createdAt ?? ""))
-  )[0] ?? null;
-  const sessionRuntimeLabel = formatElapsedDuration(oldestJob?.createdAt ?? null) ?? "unknown";
+  const oldestJob =
+    [...jobs].sort((left, right) =>
+      String(left.createdAt ?? "").localeCompare(String(right.createdAt ?? "")),
+    )[0] ?? null;
+  const sessionRuntimeLabel =
+    formatElapsedDuration(oldestJob?.createdAt ?? null) ?? "unknown";
 
   return {
     workspaceRoot,
@@ -239,7 +287,7 @@ export function buildStatusSnapshot(cwd, options = {}) {
     latestFinished,
     recent,
     needsReview: Boolean(config.stopReviewGate),
-    sessionRuntime: { label: sessionRuntimeLabel }
+    sessionRuntime: { label: sessionRuntimeLabel },
   };
 }
 
@@ -248,35 +296,52 @@ export function buildSingleJobSnapshot(cwd, reference, options = {}) {
   const jobs = sortJobsNewestFirst(listJobs(workspaceRoot));
   const selected = matchJobReference(jobs, reference);
   if (!selected) {
-    throw new Error(`No job found for "${reference}". Run /gemini:status to inspect known jobs.`);
+    throw new Error(
+      `No job found for "${reference}". Run /gemini:status to inspect known jobs.`,
+    );
   }
 
   return {
     workspaceRoot,
-    job: enrichJob(selected, { maxProgressLines: options.maxProgressLines })
+    job: enrichJob(selected, { maxProgressLines: options.maxProgressLines }),
   };
 }
 
 export function resolveResultJob(cwd, reference) {
   const workspaceRoot = resolveWorkspaceRoot(cwd);
-  const jobs = sortJobsNewestFirst(reference ? listJobs(workspaceRoot) : filterJobsForCurrentSession(listJobs(workspaceRoot)));
+  const jobs = sortJobsNewestFirst(
+    reference
+      ? listJobs(workspaceRoot)
+      : filterJobsForCurrentSession(listJobs(workspaceRoot)),
+  );
   const selected = matchJobReference(
     jobs,
     reference,
-    (job) => job.status === "completed" || job.status === "failed" || job.status === "cancelled"
+    (job) =>
+      job.status === "completed" ||
+      job.status === "failed" ||
+      job.status === "cancelled",
   );
 
   if (selected) {
     return { workspaceRoot, job: selected };
   }
 
-  const active = matchJobReference(jobs, reference, (job) => job.status === "queued" || job.status === "running");
+  const active = matchJobReference(
+    jobs,
+    reference,
+    (job) => job.status === "queued" || job.status === "running",
+  );
   if (active) {
-    throw new Error(`Job ${active.id} is still ${active.status}. Check /gemini:status and try again once it finishes.`);
+    throw new Error(
+      `Job ${active.id} is still ${active.status}. Check /gemini:status and try again once it finishes.`,
+    );
   }
 
   if (reference) {
-    throw new Error(`No finished job found for "${reference}". Run /gemini:status to inspect active jobs.`);
+    throw new Error(
+      `No finished job found for "${reference}". Run /gemini:status to inspect active jobs.`,
+    );
   }
 
   throw new Error("No finished Gemini jobs found for this repository yet.");
@@ -285,7 +350,9 @@ export function resolveResultJob(cwd, reference) {
 export function resolveCancelableJob(cwd, reference) {
   const workspaceRoot = resolveWorkspaceRoot(cwd);
   const jobs = sortJobsNewestFirst(listJobs(workspaceRoot));
-  const activeJobs = jobs.filter((job) => job.status === "queued" || job.status === "running");
+  const activeJobs = jobs.filter(
+    (job) => job.status === "queued" || job.status === "running",
+  );
 
   if (reference) {
     const selected = matchJobReference(activeJobs, reference);
@@ -299,7 +366,9 @@ export function resolveCancelableJob(cwd, reference) {
     return { workspaceRoot, job: activeJobs[0] };
   }
   if (activeJobs.length > 1) {
-    throw new Error("Multiple Gemini jobs are active. Pass a job id to /gemini:cancel.");
+    throw new Error(
+      "Multiple Gemini jobs are active. Pass a job id to /gemini:cancel.",
+    );
   }
 
   throw new Error("No active Gemini jobs to cancel.");

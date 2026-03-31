@@ -1,5 +1,5 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 
 import { terminateProcessTree } from "../plugins/gemini/scripts/lib/process.mjs";
 
@@ -16,17 +16,17 @@ test("terminateProcessTree uses taskkill on Windows", () => {
         signal: null,
         stdout: "",
         stderr: "",
-        error: null
+        error: null,
       };
     },
     killImpl() {
       throw new Error("kill fallback should not run");
-    }
+    },
   });
 
   assert.deepEqual(captured, {
     command: "taskkill",
-    args: ["/PID", "1234", "/T", "/F"]
+    args: ["/PID", "1234", "/T", "/F"],
   });
   assert.equal(outcome.delivered, true);
   assert.equal(outcome.method, "taskkill");
@@ -41,11 +41,11 @@ test("terminateProcessTree treats missing Windows processes as already stopped",
         args,
         status: 128,
         signal: null,
-        stdout: "ERROR: The process \"1234\" not found.",
+        stdout: 'ERROR: The process "1234" not found.',
         stderr: "",
-        error: null
+        error: null,
       };
-    }
+    },
   });
 
   assert.equal(outcome.attempted, true);

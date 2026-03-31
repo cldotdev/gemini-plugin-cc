@@ -1,11 +1,15 @@
+import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
 import test from "node:test";
-import assert from "node:assert/strict";
 import { fileURLToPath } from "node:url";
 
-import { installFakeGemini, buildEnv, readFakeState } from "./fake-gemini-fixture.mjs";
-import { makeTempDir, run, initGitRepo } from "./helpers.mjs";
+import {
+  buildEnv,
+  installFakeGemini,
+  readFakeState,
+} from "./fake-gemini-fixture.mjs";
+import { initGitRepo, makeTempDir, run } from "./helpers.mjs";
 
 const ROOT = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const PLUGIN_ROOT = path.join(ROOT, "plugins", "gemini");
@@ -17,10 +21,14 @@ test("setup reports ready when fake gemini is installed", () => {
 
   const result = run("node", [SCRIPT, "setup", "--json"], {
     cwd: ROOT,
-    env: buildEnv(binDir)
+    env: buildEnv(binDir),
   });
 
-  assert.equal(result.status, 0, `stderr: ${result.stderr}\nstdout: ${result.stdout}`);
+  assert.equal(
+    result.status,
+    0,
+    `stderr: ${result.stderr}\nstdout: ${result.stdout}`,
+  );
   const payload = JSON.parse(result.stdout);
   assert.equal(payload.ready, true);
 });
@@ -34,7 +42,7 @@ test("task runs and captures output", () => {
 
   const result = run("node", [SCRIPT, "task", "Do the thing"], {
     cwd: repo,
-    env: buildEnv(binDir)
+    env: buildEnv(binDir),
   });
 
   assert.equal(result.status, 0, `stderr: ${result.stderr}`);
@@ -55,13 +63,19 @@ test("review completes with no-issues result", () => {
 
   const result = run("node", [SCRIPT, "review"], {
     cwd: repo,
-    env: buildEnv(binDir)
+    env: buildEnv(binDir),
   });
 
-  assert.equal(result.status, 0, `stderr: ${result.stderr}\nstdout: ${result.stdout}`);
+  assert.equal(
+    result.status,
+    0,
+    `stderr: ${result.stderr}\nstdout: ${result.stdout}`,
+  );
   assert.ok(
-    result.stdout.includes("no-issues") || result.stdout.includes("No issues") || result.stdout.includes("clean"),
-    `Unexpected output: ${result.stdout}`
+    result.stdout.includes("no-issues") ||
+      result.stdout.includes("No issues") ||
+      result.stdout.includes("clean"),
+    `Unexpected output: ${result.stdout}`,
   );
 });
 

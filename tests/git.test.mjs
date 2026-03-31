@@ -1,13 +1,13 @@
-import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import path from "node:path";
-import { makeTempDir, run, initGitRepo } from "./helpers.mjs";
+import test from "node:test";
 import {
-  ensureGitRepository,
   collectReviewContext,
-  resolveReviewTarget
+  ensureGitRepository,
+  resolveReviewTarget,
 } from "../plugins/gemini/scripts/lib/git.mjs";
+import { initGitRepo, makeTempDir, run } from "./helpers.mjs";
 
 test("ensureGitRepository returns repo root for a git directory", () => {
   const dir = makeTempDir();
@@ -40,7 +40,10 @@ test("collectReviewContext returns context object with source and diff", () => {
   fs.writeFileSync(path.join(dir, "bar.js"), "function test() {}\n");
   run("git", ["add", "bar.js"], { cwd: dir });
   run("git", ["commit", "-m", "add bar"], { cwd: dir });
-  fs.writeFileSync(path.join(dir, "bar.js"), "function test() { return 42; }\n");
+  fs.writeFileSync(
+    path.join(dir, "bar.js"),
+    "function test() { return 42; }\n",
+  );
   const target = resolveReviewTarget(dir, { scope: "working-tree" });
   const context = collectReviewContext(dir, target);
   assert.ok(context);

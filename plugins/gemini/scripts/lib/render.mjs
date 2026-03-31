@@ -41,21 +41,44 @@ function validateReviewResultShape(data) {
 }
 
 function normalizeReviewFinding(finding, index) {
-  const source = finding && typeof finding === "object" && !Array.isArray(finding) ? finding : {};
-  const lineStart = Number.isInteger(source.line_start) && source.line_start > 0 ? source.line_start : null;
+  const source =
+    finding && typeof finding === "object" && !Array.isArray(finding)
+      ? finding
+      : {};
+  const lineStart =
+    Number.isInteger(source.line_start) && source.line_start > 0
+      ? source.line_start
+      : null;
   const lineEnd =
-    Number.isInteger(source.line_end) && source.line_end > 0 && (!lineStart || source.line_end >= lineStart)
+    Number.isInteger(source.line_end) &&
+    source.line_end > 0 &&
+    (!lineStart || source.line_end >= lineStart)
       ? source.line_end
       : lineStart;
 
   return {
-    severity: typeof source.severity === "string" && source.severity.trim() ? source.severity.trim() : "low",
-    title: typeof source.title === "string" && source.title.trim() ? source.title.trim() : `Finding ${index + 1}`,
-    body: typeof source.body === "string" && source.body.trim() ? source.body.trim() : "No details provided.",
-    file: typeof source.file === "string" && source.file.trim() ? source.file.trim() : "unknown",
+    severity:
+      typeof source.severity === "string" && source.severity.trim()
+        ? source.severity.trim()
+        : "low",
+    title:
+      typeof source.title === "string" && source.title.trim()
+        ? source.title.trim()
+        : `Finding ${index + 1}`,
+    body:
+      typeof source.body === "string" && source.body.trim()
+        ? source.body.trim()
+        : "No details provided.",
+    file:
+      typeof source.file === "string" && source.file.trim()
+        ? source.file.trim()
+        : "unknown",
     line_start: lineStart,
     line_end: lineEnd,
-    recommendation: typeof source.recommendation === "string" ? source.recommendation.trim() : ""
+    recommendation:
+      typeof source.recommendation === "string"
+        ? source.recommendation.trim()
+        : "",
   };
 }
 
@@ -63,10 +86,12 @@ function normalizeReviewResultData(data) {
   return {
     verdict: data.verdict.trim(),
     summary: data.summary.trim(),
-    findings: data.findings.map((finding, index) => normalizeReviewFinding(finding, index)),
+    findings: data.findings.map((finding, index) =>
+      normalizeReviewFinding(finding, index),
+    ),
     next_steps: data.next_steps
       .filter((step) => typeof step === "string" && step.trim())
-      .map((step) => step.trim())
+      .map((step) => step.trim()),
   };
 }
 
@@ -75,10 +100,7 @@ function isStructuredReviewStoredResult(storedJob) {
   if (!result || typeof result !== "object" || Array.isArray(result)) {
     return false;
   }
-  return (
-    Object.prototype.hasOwnProperty.call(result, "result") ||
-    Object.prototype.hasOwnProperty.call(result, "parseError")
-  );
+  return Object.hasOwn(result, "result") || Object.hasOwn(result, "parseError");
 }
 
 function formatJobLine(job) {
@@ -108,7 +130,9 @@ function formatGeminiResumeCommand(job) {
 
 function appendActiveJobsTable(lines, jobs) {
   lines.push("Active jobs:");
-  lines.push("| Job | Kind | Status | Phase | Elapsed | Gemini Session ID | Summary | Actions |");
+  lines.push(
+    "| Job | Kind | Status | Phase | Elapsed | Gemini Session ID | Summary | Actions |",
+  );
   lines.push("| --- | --- | --- | --- | --- | --- | --- | --- |");
   for (const job of jobs) {
     const actions = [`/gemini:status ${job.id}`];
@@ -116,7 +140,7 @@ function appendActiveJobsTable(lines, jobs) {
       actions.push(`/gemini:cancel ${job.id}`);
     }
     lines.push(
-      `| ${escapeMarkdownCell(job.id)} | ${escapeMarkdownCell(job.kindLabel)} | ${escapeMarkdownCell(job.status)} | ${escapeMarkdownCell(job.phase ?? "")} | ${escapeMarkdownCell(job.elapsed ?? "")} | ${escapeMarkdownCell(job.threadId ?? "")} | ${escapeMarkdownCell(job.summary ?? "")} | ${actions.map((action) => `\`${action}\``).join("<br>")} |`
+      `| ${escapeMarkdownCell(job.id)} | ${escapeMarkdownCell(job.kindLabel)} | ${escapeMarkdownCell(job.status)} | ${escapeMarkdownCell(job.phase ?? "")} | ${escapeMarkdownCell(job.elapsed ?? "")} | ${escapeMarkdownCell(job.threadId ?? "")} | ${escapeMarkdownCell(job.summary ?? "")} | ${actions.map((action) => `\`${action}\``).join("<br>")} |`,
     );
   }
 }
@@ -145,13 +169,26 @@ function pushJobDetails(lines, job, options = {}) {
   if (job.logFile && options.showLog) {
     lines.push(`  Log: ${job.logFile}`);
   }
-  if ((job.status === "queued" || job.status === "running") && options.showCancelHint) {
+  if (
+    (job.status === "queued" || job.status === "running") &&
+    options.showCancelHint
+  ) {
     lines.push(`  Cancel: /gemini:cancel ${job.id}`);
   }
-  if (job.status !== "queued" && job.status !== "running" && options.showResultHint) {
+  if (
+    job.status !== "queued" &&
+    job.status !== "running" &&
+    options.showResultHint
+  ) {
     lines.push(`  Result: /gemini:result ${job.id}`);
   }
-  if (job.status !== "queued" && job.status !== "running" && job.jobClass === "task" && job.write && options.showReviewHint) {
+  if (
+    job.status !== "queued" &&
+    job.status !== "running" &&
+    job.jobClass === "task" &&
+    job.write &&
+    options.showReviewHint
+  ) {
     lines.push("  Review changes: /gemini:review --wait");
     lines.push("  Stricter review: /gemini:adversarial-review --wait");
   }
@@ -186,7 +223,7 @@ export function renderSetupReport(report) {
     `- gemini: ${report.gemini.detail}`,
     `- auth: ${report.auth.detail}`,
     `- review gate: ${report.reviewGateEnabled ? "enabled" : "disabled"}`,
-    ""
+    "",
   ];
 
   if (report.actionsTaken.length > 0) {
@@ -214,14 +251,24 @@ export function renderReviewResult(parsedResult, meta) {
       "",
       "Gemini did not return valid structured JSON.",
       "",
-      `- Parse error: ${parsedResult.parseError}`
+      `- Parse error: ${parsedResult.parseError}`,
     ];
 
     if (parsedResult.rawOutput) {
-      lines.push("", "Raw final message:", "", "```text", parsedResult.rawOutput, "```");
+      lines.push(
+        "",
+        "Raw final message:",
+        "",
+        "```text",
+        parsedResult.rawOutput,
+        "```",
+      );
     }
 
-    appendReasoningSection(lines, meta.reasoningSummary ?? parsedResult.reasoningSummary);
+    appendReasoningSection(
+      lines,
+      meta.reasoningSummary ?? parsedResult.reasoningSummary,
+    );
 
     return `${lines.join("\n").trimEnd()}\n`;
   }
@@ -234,20 +281,32 @@ export function renderReviewResult(parsedResult, meta) {
       `Target: ${meta.targetLabel}`,
       "Gemini returned JSON with an unexpected review shape.",
       "",
-      `- Validation error: ${validationError}`
+      `- Validation error: ${validationError}`,
     ];
 
     if (parsedResult.rawOutput) {
-      lines.push("", "Raw final message:", "", "```text", parsedResult.rawOutput, "```");
+      lines.push(
+        "",
+        "Raw final message:",
+        "",
+        "```text",
+        parsedResult.rawOutput,
+        "```",
+      );
     }
 
-    appendReasoningSection(lines, meta.reasoningSummary ?? parsedResult.reasoningSummary);
+    appendReasoningSection(
+      lines,
+      meta.reasoningSummary ?? parsedResult.reasoningSummary,
+    );
 
     return `${lines.join("\n").trimEnd()}\n`;
   }
 
   const data = normalizeReviewResultData(parsedResult.parsed);
-  const findings = [...data.findings].sort((left, right) => severityRank(left.severity) - severityRank(right.severity));
+  const findings = [...data.findings].sort(
+    (left, right) => severityRank(left.severity) - severityRank(right.severity),
+  );
   const lines = [
     `# Gemini ${meta.reviewLabel}`,
     "",
@@ -255,7 +314,7 @@ export function renderReviewResult(parsedResult, meta) {
     `Verdict: ${data.verdict}`,
     "",
     data.summary,
-    ""
+    "",
   ];
 
   if (findings.length === 0) {
@@ -264,7 +323,9 @@ export function renderReviewResult(parsedResult, meta) {
     lines.push("Findings:");
     for (const finding of findings) {
       const lineSuffix = formatLineRange(finding);
-      lines.push(`- [${finding.severity}] ${finding.title} (${finding.file}${lineSuffix})`);
+      lines.push(
+        `- [${finding.severity}] ${finding.title} (${finding.file}${lineSuffix})`,
+      );
       lines.push(`  ${finding.body}`);
       if (finding.recommendation) {
         lines.push(`  Recommendation: ${finding.recommendation}`);
@@ -284,13 +345,16 @@ export function renderReviewResult(parsedResult, meta) {
   return `${lines.join("\n").trimEnd()}\n`;
 }
 
-export function renderTaskResult(parsedResult, meta) {
-  const rawOutput = typeof parsedResult?.rawOutput === "string" ? parsedResult.rawOutput : "";
+export function renderTaskResult(parsedResult, _meta) {
+  const rawOutput =
+    typeof parsedResult?.rawOutput === "string" ? parsedResult.rawOutput : "";
   if (rawOutput) {
     return rawOutput.endsWith("\n") ? rawOutput : `${rawOutput}\n`;
   }
 
-  const message = String(parsedResult?.failureMessage ?? "").trim() || "Gemini did not return a final message.";
+  const message =
+    String(parsedResult?.failureMessage ?? "").trim() ||
+    "Gemini did not return a final message.";
   return `${message}\n`;
 }
 
@@ -300,7 +364,7 @@ export function renderStatusReport(report) {
     "",
     `Session runtime: ${report.sessionRuntime.label}`,
     `Review gate: ${report.config.stopReviewGate ? "enabled" : "disabled"}`,
-    ""
+    "",
   ];
 
   if (report.running.length > 0) {
@@ -310,7 +374,7 @@ export function renderStatusReport(report) {
     for (const job of report.running) {
       pushJobDetails(lines, job, {
         showElapsed: true,
-        showLog: true
+        showLog: true,
       });
     }
     lines.push("");
@@ -320,7 +384,7 @@ export function renderStatusReport(report) {
     lines.push("Latest finished:");
     pushJobDetails(lines, report.latestFinished, {
       showDuration: true,
-      showLog: report.latestFinished.status === "failed"
+      showLog: report.latestFinished.status === "failed",
     });
     lines.push("");
   }
@@ -330,7 +394,7 @@ export function renderStatusReport(report) {
     for (const job of report.recent) {
       pushJobDetails(lines, job, {
         showDuration: true,
-        showLog: job.status === "failed"
+        showLog: job.status === "failed",
       });
     }
     lines.push("");
@@ -340,7 +404,9 @@ export function renderStatusReport(report) {
 
   if (report.needsReview) {
     lines.push("The stop-time review gate is enabled.");
-    lines.push("Ending the session will trigger a fresh Gemini adversarial review and block if it finds issues.");
+    lines.push(
+      "Ending the session will trigger a fresh Gemini adversarial review and block if it finds issues.",
+    );
   }
 
   return `${lines.join("\n").trimEnd()}\n`;
@@ -354,7 +420,7 @@ export function renderJobStatusReport(job) {
     showLog: true,
     showCancelHint: true,
     showResultHint: true,
-    showReviewHint: true
+    showReviewHint: true,
   });
   return `${lines.join("\n").trimEnd()}\n`;
 }
@@ -363,7 +429,9 @@ export function renderStoredJobResult(job, storedJob) {
   const threadId = storedJob?.threadId ?? job.threadId ?? null;
   const resumeCommand = threadId ? `gemini resume ${threadId}` : null;
   if (isStructuredReviewStoredResult(storedJob) && storedJob?.rendered) {
-    const output = storedJob.rendered.endsWith("\n") ? storedJob.rendered : `${storedJob.rendered}\n`;
+    const output = storedJob.rendered.endsWith("\n")
+      ? storedJob.rendered
+      : `${storedJob.rendered}\n`;
     if (!threadId) {
       return output;
     }
@@ -371,8 +439,10 @@ export function renderStoredJobResult(job, storedJob) {
   }
 
   const rawOutput =
-    (typeof storedJob?.result?.rawOutput === "string" && storedJob.result.rawOutput) ||
-    (typeof storedJob?.result?.gemini?.stdout === "string" && storedJob.result.gemini.stdout) ||
+    (typeof storedJob?.result?.rawOutput === "string" &&
+      storedJob.result.rawOutput) ||
+    (typeof storedJob?.result?.gemini?.stdout === "string" &&
+      storedJob.result.gemini.stdout) ||
     "";
   if (rawOutput) {
     const output = rawOutput.endsWith("\n") ? rawOutput : `${rawOutput}\n`;
@@ -383,7 +453,9 @@ export function renderStoredJobResult(job, storedJob) {
   }
 
   if (storedJob?.rendered) {
-    const output = storedJob.rendered.endsWith("\n") ? storedJob.rendered : `${storedJob.rendered}\n`;
+    const output = storedJob.rendered.endsWith("\n")
+      ? storedJob.rendered
+      : `${storedJob.rendered}\n`;
     if (!threadId) {
       return output;
     }
@@ -394,7 +466,7 @@ export function renderStoredJobResult(job, storedJob) {
     `# ${job.title ?? "Gemini Result"}`,
     "",
     `Job: ${job.id}`,
-    `Status: ${job.status}`
+    `Status: ${job.status}`,
   ];
 
   if (threadId) {
@@ -418,12 +490,7 @@ export function renderStoredJobResult(job, storedJob) {
 }
 
 export function renderCancelReport(job) {
-  const lines = [
-    "# Gemini Cancel",
-    "",
-    `Cancelled ${job.id}.`,
-    ""
-  ];
+  const lines = ["# Gemini Cancel", "", `Cancelled ${job.id}.`, ""];
 
   if (job.title) {
     lines.push(`- Title: ${job.title}`);

@@ -193,7 +193,7 @@ export function buildEnv(binDir, extra = {}) {
   return {
     ...process.env,
     PATH: `${binDir}:${process.env.PATH}`,
-    ...extra
+    ...extra,
   };
 }
 

@@ -1,21 +1,21 @@
-import test from "node:test";
 import assert from "node:assert/strict";
-import { makeTempDir } from "./helpers.mjs";
-import { installFakeGemini, buildEnv } from "./fake-gemini-fixture.mjs";
+import test from "node:test";
 import {
-  detectAcpFlag,
   clearFlagCache,
-  spawnAcpClient,
   createSession,
-  isAlive
+  detectAcpFlag,
+  isAlive,
+  spawnAcpClient,
 } from "../plugins/gemini/scripts/lib/acp-lifecycle.mjs";
+import { buildEnv, installFakeGemini } from "./fake-gemini-fixture.mjs";
+import { makeTempDir } from "./helpers.mjs";
 
 test("detectAcpFlag returns --acp for gemini >= 0.33.0", async () => {
   const binDir = makeTempDir();
   installFakeGemini(binDir, "task-ok"); // fake reports 0.33.0
   clearFlagCache();
   const origPath = process.env.PATH;
-  process.env.PATH = binDir + ":" + origPath;
+  process.env.PATH = `${binDir}:${origPath}`;
   try {
     const flag = await detectAcpFlag("gemini");
     assert.equal(flag, "--acp");

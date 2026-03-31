@@ -1,11 +1,16 @@
+import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import assert from "node:assert/strict";
-
+import {
+  resolveJobFile,
+  resolveJobLogFile,
+  resolveStateDir,
+  resolveStateFile,
+  saveState,
+} from "../plugins/gemini/scripts/lib/state.mjs";
 import { makeTempDir } from "./helpers.mjs";
-import { resolveJobFile, resolveJobLogFile, resolveStateDir, resolveStateFile, saveState } from "../plugins/gemini/scripts/lib/state.mjs";
 
 test("resolveStateDir uses a temp-backed per-workspace directory", () => {
   const previousPluginDataDir = process.env.CLAUDE_PLUGIN_DATA;
@@ -17,9 +22,13 @@ test("resolveStateDir uses a temp-backed per-workspace directory", () => {
 
     assert.equal(stateDir.startsWith(os.tmpdir()), true);
     assert.match(path.basename(stateDir), /.+-[a-f0-9]{16}$/);
-    assert.match(stateDir, new RegExp(`^${os.tmpdir().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+    assert.match(
+      stateDir,
+      new RegExp(`^${os.tmpdir().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+    );
   } finally {
-    if (previousPluginDataDir !== undefined) process.env.CLAUDE_PLUGIN_DATA = previousPluginDataDir;
+    if (previousPluginDataDir !== undefined)
+      process.env.CLAUDE_PLUGIN_DATA = previousPluginDataDir;
   }
 });
 
@@ -36,7 +45,9 @@ test("resolveStateDir uses CLAUDE_PLUGIN_DATA when it is provided", () => {
     assert.match(path.basename(stateDir), /.+-[a-f0-9]{16}$/);
     assert.match(
       stateDir,
-      new RegExp(`^${path.join(pluginDataDir, "state").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`)
+      new RegExp(
+        `^${path.join(pluginDataDir, "state").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`,
+      ),
     );
   } finally {
     if (previousPluginDataDir == null) {
@@ -58,13 +69,17 @@ test("saveState prunes dropped job artifacts when indexed jobs exceed the cap", 
     const logFile = resolveJobLogFile(workspace, jobId);
     const jobFile = resolveJobFile(workspace, jobId);
     fs.writeFileSync(logFile, `log ${jobId}\n`, "utf8");
-    fs.writeFileSync(jobFile, JSON.stringify({ id: jobId, status: "completed" }, null, 2), "utf8");
+    fs.writeFileSync(
+      jobFile,
+      JSON.stringify({ id: jobId, status: "completed" }, null, 2),
+      "utf8",
+    );
     return {
       id: jobId,
       status: "completed",
       logFile,
       updatedAt,
-      createdAt: updatedAt
+      createdAt: updatedAt,
     };
   });
 
@@ -74,22 +89,22 @@ test("saveState prunes dropped job artifacts when indexed jobs exceed the cap", 
       {
         version: 1,
         config: { stopReviewGate: false },
-        jobs
+        jobs,
       },
       null,
-      2
+      2,
     )}\n`,
-    "utf8"
+    "utf8",
   );
 
   saveState(workspace, {
     version: 1,
     config: { stopReviewGate: false },
-    jobs
+    jobs,
   });
 
   const prunedJobFile = resolveJobFile(workspace, "job-0");
-  const prunedLogFile = resolveJobLogFile(workspace, "job-0");
+  const _prunedLogFile = resolveJobLogFile(workspace, "job-0");
   const retainedJobFile = resolveJobFile(workspace, "job-50");
   const retainedLogFile = resolveJobLogFile(workspace, "job-50");
   const jobsDir = path.dirname(prunedJobFile);
@@ -101,12 +116,12 @@ test("saveState prunes dropped job artifacts when indexed jobs exceed the cap", 
   assert.equal(savedState.jobs.length, 50);
   assert.deepEqual(
     savedState.jobs.map((job) => job.id),
-    Array.from({ length: 50 }, (_, index) => `job-${50 - index}`)
+    Array.from({ length: 50 }, (_, index) => `job-${50 - index}`),
   );
   assert.deepEqual(
     fs.readdirSync(jobsDir).sort(),
     Array.from({ length: 50 }, (_, index) => `job-${index + 1}`)
       .flatMap((jobId) => [`${jobId}.json`, `${jobId}.log`])
-      .sort()
+      .sort(),
   );
 });

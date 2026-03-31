@@ -1,22 +1,23 @@
 #!/usr/bin/env node
 
-import fs from "node:fs";
-import process from "node:process";
-import path from "node:path";
 import { spawnSync } from "node:child_process";
+import fs from "node:fs";
+import path from "node:path";
+import process from "node:process";
 import { fileURLToPath } from "node:url";
 
 import { getGeminiLoginStatus } from "./lib/gemini.mjs";
-import { loadPromptTemplate, interpolateTemplate } from "./lib/prompts.mjs";
-import { getConfig, listJobs } from "./lib/state.mjs";
 import { sortJobsNewestFirst } from "./lib/job-control.mjs";
+import { interpolateTemplate, loadPromptTemplate } from "./lib/prompts.mjs";
+import { getConfig, listJobs } from "./lib/state.mjs";
 import { SESSION_ID_ENV } from "./lib/tracked-jobs.mjs";
 import { resolveWorkspaceRoot } from "./lib/workspace.mjs";
 
 const STOP_REVIEW_TIMEOUT_MS = 15 * 60 * 1000;
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const ROOT_DIR = path.resolve(SCRIPT_DIR, "..");
-const STOP_REVIEW_TASK_MARKER = "Run a stop-gate review of the previous Claude turn.";
+const _STOP_REVIEW_TASK_MARKER =
+  "Run a stop-gate review of the previous Claude turn.";
 
 function readHookInput() {
   const raw = fs.readFileSync(0, "utf8").trim();
@@ -46,13 +47,15 @@ function filterJobsForCurrentSession(jobs, input = {}) {
 }
 
 function buildStopReviewPrompt(input = {}) {
-  const lastAssistantMessage = String(input.last_assistant_message ?? "").trim();
+  const lastAssistantMessage = String(
+    input.last_assistant_message ?? "",
+  ).trim();
   const template = loadPromptTemplate(ROOT_DIR, "stop-review-gate");
   const claudeResponseBlock = lastAssistantMessage
     ? ["Previous Claude response:", lastAssistantMessage].join("\n")
     : "";
   return interpolateTemplate(template, {
-    CLAUDE_RESPONSE_BLOCK: claudeResponseBlock
+    CLAUDE_RESPONSE_BLOCK: claudeResponseBlock,
   });
 }
 
@@ -72,7 +75,7 @@ function parseStopReviewOutput(rawOutput) {
     return {
       ok: false,
       reason:
-        "The stop-time Gemini review task returned no final output. Run /gemini:review --wait manually or bypass the gate."
+        "The stop-time Gemini review task returned no final output. Run /gemini:review --wait manually or bypass the gate.",
     };
   }
 
@@ -84,14 +87,14 @@ function parseStopReviewOutput(rawOutput) {
     const reason = firstLine.slice("BLOCK:".length).trim() || text;
     return {
       ok: false,
-      reason: `Gemini stop-time review found issues that still need fixes before ending the session: ${reason}`
+      reason: `Gemini stop-time review found issues that still need fixes before ending the session: ${reason}`,
     };
   }
 
   return {
     ok: false,
     reason:
-      "The stop-time Gemini review task returned an unexpected answer. Run /gemini:review --wait manually or bypass the gate."
+      "The stop-time Gemini review task returned an unexpected answer. Run /gemini:review --wait manually or bypass the gate.",
   };
 }
 
@@ -100,21 +103,25 @@ function runStopReview(cwd, input = {}) {
   const prompt = buildStopReviewPrompt(input);
   const childEnv = {
     ...process.env,
-    ...(input.session_id ? { [SESSION_ID_ENV]: input.session_id } : {})
+    ...(input.session_id ? { [SESSION_ID_ENV]: input.session_id } : {}),
   };
-  const result = spawnSync(process.execPath, [scriptPath, "task", "--json", prompt], {
-    cwd,
-    env: childEnv,
-    encoding: "utf8",
-    timeout: STOP_REVIEW_TIMEOUT_MS
-  });
+  const result = spawnSync(
+    process.execPath,
+    [scriptPath, "task", "--json", prompt],
+    {
+      cwd,
+      env: childEnv,
+      encoding: "utf8",
+      timeout: STOP_REVIEW_TIMEOUT_MS,
+    },
+  );
 
-  // @ts-ignore
+  // @ts-expect-error
   if (result.error?.code === "ETIMEDOUT") {
     return {
       ok: false,
       reason:
-        "The stop-time Gemini review task timed out after 15 minutes. Run /gemini:review --wait manually or bypass the gate."
+        "The stop-time Gemini review task timed out after 15 minutes. Run /gemini:review --wait manually or bypass the gate.",
     };
   }
 
@@ -124,7 +131,7 @@ function runStopReview(cwd, input = {}) {
       ok: false,
       reason: detail
         ? `The stop-time Gemini review task failed: ${detail}`
-        : "The stop-time Gemini review task failed. Run /gemini:review --wait manually or bypass the gate."
+        : "The stop-time Gemini review task failed. Run /gemini:review --wait manually or bypass the gate.",
     };
   }
 
@@ -135,7 +142,7 @@ function runStopReview(cwd, input = {}) {
     return {
       ok: false,
       reason:
-        "The stop-time Gemini review task returned invalid JSON. Run /gemini:review --wait manually or bypass the gate."
+        "The stop-time Gemini review task returned invalid JSON. Run /gemini:review --wait manually or bypass the gate.",
     };
   }
 }
@@ -146,8 +153,12 @@ async function main() {
   const workspaceRoot = resolveWorkspaceRoot(cwd);
   const config = getConfig(workspaceRoot);
 
-  const jobs = sortJobsNewestFirst(filterJobsForCurrentSession(listJobs(workspaceRoot), input));
-  const runningJob = jobs.find((job) => job.status === "queued" || job.status === "running");
+  const jobs = sortJobsNewestFirst(
+    filterJobsForCurrentSession(listJobs(workspaceRoot), input),
+  );
+  const runningJob = jobs.find(
+    (job) => job.status === "queued" || job.status === "running",
+  );
   const runningTaskNote = runningJob
     ? `Gemini task ${runningJob.id} is still running. Check /gemini:status and use /gemini:cancel ${runningJob.id} if you want to stop it before ending the session.`
     : null;
@@ -168,7 +179,9 @@ async function main() {
   if (!review.ok) {
     emitDecision({
       decision: "block",
-      reason: runningTaskNote ? `${runningTaskNote} ${review.reason}` : review.reason
+      reason: runningTaskNote
+        ? `${runningTaskNote} ${review.reason}`
+        : review.reason,
     });
     return;
   }
@@ -177,6 +190,8 @@ async function main() {
 }
 
 main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.stderr.write(
+    `${error instanceof Error ? error.message : String(error)}\n`,
+  );
   process.exit(1);
 });

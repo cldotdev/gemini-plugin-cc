@@ -19,14 +19,18 @@ function readHookInput() {
 }
 
 function shellEscape(value) {
-  return `'${String(value).replace(/'/g, `'\"'\"'`)}'`;
+  return `'${String(value).replace(/'/g, `'"'"'`)}'`;
 }
 
 function appendEnvVar(name, value) {
   if (!process.env.CLAUDE_ENV_FILE || value == null || value === "") {
     return;
   }
-  fs.appendFileSync(process.env.CLAUDE_ENV_FILE, `export ${name}=${shellEscape(value)}\n`, "utf8");
+  fs.appendFileSync(
+    process.env.CLAUDE_ENV_FILE,
+    `export ${name}=${shellEscape(value)}\n`,
+    "utf8",
+  );
 }
 
 function cleanupSessionJobs(cwd, sessionId) {
@@ -60,7 +64,7 @@ function cleanupSessionJobs(cwd, sessionId) {
 
   saveState(workspaceRoot, {
     ...state,
-    jobs: state.jobs.filter((job) => job.sessionId !== sessionId)
+    jobs: state.jobs.filter((job) => job.sessionId !== sessionId),
   });
 }
 
@@ -89,6 +93,8 @@ async function main() {
 }
 
 main().catch((error) => {
-  process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+  process.stderr.write(
+    `${error instanceof Error ? error.message : String(error)}\n`,
+  );
   process.exit(1);
 });

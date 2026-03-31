@@ -9,9 +9,16 @@
     "node": ">=18.18.0"
   },
   "scripts": {
-    "test": "node --test tests/*.test.mjs"
+    "build": "tsc -p tsconfig.scripts.json",
+    "lint": "biome check .",
+    "lint:fix": "biome check --fix .",
+    "format": "biome format .",
+    "format:fix": "biome format --fix .",
+    "test": "node --test tests/*.test.mjs",
+    "ci": "pnpm run build && pnpm run lint && pnpm run test"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.4.10",
     "@types/node": "^25.5.0",
     "typescript": "^6.0.2"
   }

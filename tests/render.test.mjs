@@ -1,7 +1,11 @@
-import test from "node:test";
 import assert from "node:assert/strict";
+import test from "node:test";
 
-import { renderReviewResult, renderStoredJobResult, renderCancelReport } from "../plugins/gemini/scripts/lib/render.mjs";
+import {
+  renderCancelReport,
+  renderReviewResult,
+  renderStoredJobResult,
+} from "../plugins/gemini/scripts/lib/render.mjs";
 
 test("renderReviewResult formats a no-issues verdict", () => {
   const result = renderReviewResult(
@@ -10,14 +14,14 @@ test("renderReviewResult formats a no-issues verdict", () => {
         verdict: "no-issues",
         summary: "Code looks clean.",
         findings: [],
-        next_steps: []
+        next_steps: [],
       },
-      parseError: null
+      parseError: null,
     },
     {
       reviewLabel: "Review",
-      targetLabel: "working tree diff"
-    }
+      targetLabel: "working tree diff",
+    },
   );
   assert.equal(typeof result, "string");
   assert.ok(result.length > 0);
@@ -31,23 +35,25 @@ test("renderReviewResult includes finding severity", () => {
       parsed: {
         verdict: "needs-attention",
         summary: "Found issue.",
-        findings: [{
-          severity: "high",
-          title: "SQL injection",
-          body: "Unparameterized query.",
-          file: "src/db.js",
-          line_start: 42,
-          line_end: 42,
-          recommendation: "Use parameterized queries."
-        }],
-        next_steps: ["Fix the SQL injection"]
+        findings: [
+          {
+            severity: "high",
+            title: "SQL injection",
+            body: "Unparameterized query.",
+            file: "src/db.js",
+            line_start: 42,
+            line_end: 42,
+            recommendation: "Use parameterized queries.",
+          },
+        ],
+        next_steps: ["Fix the SQL injection"],
       },
-      parseError: null
+      parseError: null,
     },
     {
       reviewLabel: "Review",
-      targetLabel: "src/db.js"
-    }
+      targetLabel: "src/db.js",
+    },
   );
   assert.ok(result.includes("SQL injection") || result.includes("high"));
 });
@@ -57,21 +63,24 @@ test("renderReviewResult degrades gracefully when JSON is missing required revie
     {
       parsed: {
         verdict: "approve",
-        summary: "Looks fine."
+        summary: "Looks fine.",
       },
       rawOutput: JSON.stringify({
         verdict: "approve",
-        summary: "Looks fine."
+        summary: "Looks fine.",
       }),
-      parseError: null
+      parseError: null,
     },
     {
       reviewLabel: "Adversarial Review",
-      targetLabel: "working tree diff"
-    }
+      targetLabel: "working tree diff",
+    },
   );
 
-  assert.match(output, /Gemini returned JSON with an unexpected review shape\./);
+  assert.match(
+    output,
+    /Gemini returned JSON with an unexpected review shape\./,
+  );
   assert.match(output, /Missing array `findings`\./);
   assert.match(output, /Raw final message:/);
 });
@@ -81,10 +90,10 @@ test("renderStoredJobResult handles a completed job", () => {
     id: "job-123",
     jobClass: "task",
     status: "completed",
-    title: "Test task"
+    title: "Test task",
   };
   const storedJob = {
-    rendered: "# Test task\n\nDone.\n"
+    rendered: "# Test task\n\nDone.\n",
   };
   const result = renderStoredJobResult(job, storedJob);
   assert.equal(typeof result, "string");
@@ -98,21 +107,23 @@ test("renderStoredJobResult prefers rendered output for structured review jobs",
       status: "completed",
       title: "Gemini Adversarial Review",
       jobClass: "review",
-      threadId: "thr_123"
+      threadId: "thr_123",
     },
     {
       threadId: "thr_123",
-      rendered: "# Gemini Adversarial Review\n\nTarget: working tree diff\nVerdict: needs-attention\n",
+      rendered:
+        "# Gemini Adversarial Review\n\nTarget: working tree diff\nVerdict: needs-attention\n",
       result: {
         result: {
           verdict: "needs-attention",
           summary: "One issue.",
           findings: [],
-          next_steps: []
+          next_steps: [],
         },
-        rawOutput: '{"verdict":"needs-attention","summary":"One issue.","findings":[],"next_steps":[]}'
-      }
-    }
+        rawOutput:
+          '{"verdict":"needs-attention","summary":"One issue.","findings":[],"next_steps":[]}',
+      },
+    },
   );
 
   assert.match(output, /^# Gemini Adversarial Review/);
@@ -125,7 +136,7 @@ test("renderCancelReport formats cancel output", () => {
   const output = renderCancelReport({
     id: "job-456",
     title: "My task",
-    summary: "Doing stuff"
+    summary: "Doing stuff",
   });
   assert.match(output, /Cancelled job-456/);
   assert.match(output, /My task/);

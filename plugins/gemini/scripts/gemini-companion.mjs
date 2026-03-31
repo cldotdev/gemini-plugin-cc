@@ -13,27 +13,35 @@ import {
   getGeminiLoginStatus,
   interruptSession,
   runReview,
-  runTask
+  runTask,
 } from "./lib/gemini.mjs";
-import { collectReviewContext, ensureGitRepository, resolveReviewTarget } from "./lib/git.mjs";
-import { binaryAvailable, terminateProcessTree } from "./lib/process.mjs";
-import { loadPromptTemplate, interpolateTemplate } from "./lib/prompts.mjs";
 import {
-  generateJobId,
-  getConfig,
-  listJobs,
-  setConfig,
-  upsertJob,
-  writeJobFile
-} from "./lib/state.mjs";
+  collectReviewContext,
+  ensureGitRepository,
+  resolveReviewTarget,
+} from "./lib/git.mjs";
 import {
   buildSingleJobSnapshot,
   buildStatusSnapshot,
   readStoredJob,
   resolveCancelableJob,
   resolveResultJob,
-  sortJobsNewestFirst
 } from "./lib/job-control.mjs";
+import { binaryAvailable, terminateProcessTree } from "./lib/process.mjs";
+import { interpolateTemplate, loadPromptTemplate } from "./lib/prompts.mjs";
+import {
+  renderCancelReport,
+  renderJobStatusReport,
+  renderSetupReport,
+  renderStatusReport,
+  renderStoredJobResult,
+} from "./lib/render.mjs";
+import {
+  generateJobId,
+  getConfig,
+  upsertJob,
+  writeJobFile,
+} from "./lib/state.mjs";
 import {
   appendLogLine,
   createJobLogFile,
@@ -42,16 +50,8 @@ import {
   createProgressReporter,
   nowIso,
   runTrackedJob,
-  SESSION_ID_ENV
 } from "./lib/tracked-jobs.mjs";
 import { resolveWorkspaceRoot } from "./lib/workspace.mjs";
-import {
-  renderCancelReport,
-  renderJobStatusReport,
-  renderSetupReport,
-  renderStatusReport,
-  renderStoredJobResult
-} from "./lib/render.mjs";
 
 const ROOT_DIR = path.resolve(fileURLToPath(new URL("..", import.meta.url)));
 const DEFAULT_STATUS_WAIT_TIMEOUT_MS = 240000;
@@ -59,7 +59,7 @@ const DEFAULT_STATUS_POLL_INTERVAL_MS = 2000;
 const MODEL_ALIASES = new Map([
   ["pro", "gemini-2.5-pro"],
   ["flash", "gemini-2.5-flash"],
-  ["flash-lite", "gemini-2.5-flash-lite"]
+  ["flash-lite", "gemini-2.5-flash-lite"],
 ]);
 
 function printUsage() {
@@ -72,8 +72,8 @@ function printUsage() {
       "  node scripts/gemini-companion.mjs task [--background] [--write] [--model <model|pro|flash|flash-lite>] [prompt]",
       "  node scripts/gemini-companion.mjs status [job-id] [--all] [--json]",
       "  node scripts/gemini-companion.mjs result [job-id] [--json]",
-      "  node scripts/gemini-companion.mjs cancel [job-id] [--json]"
-    ].join("\n")
+      "  node scripts/gemini-companion.mjs cancel [job-id] [--json]",
+    ].join("\n"),
   );
 }
 
@@ -103,7 +103,7 @@ function normalizeRequestedModel(model) {
 function normalizeArgv(argv) {
   if (argv.length === 1) {
     const [raw] = argv;
-    if (!raw || !raw.trim()) {
+    if (!raw?.trim()) {
       return [];
     }
     return splitRawArgumentString(raw);
@@ -116,8 +116,8 @@ function parseCommandInput(argv, config = {}) {
     ...config,
     aliasMap: {
       C: "cwd",
-      ...(config.aliasMap ?? {})
-    }
+      ...(config.aliasMap ?? {}),
+    },
   });
 }
 
@@ -134,7 +134,9 @@ function sleep(ms) {
 }
 
 function shorten(text, limit = 96) {
-  const normalized = String(text ?? "").trim().replace(/\s+/g, " ");
+  const normalized = String(text ?? "")
+    .trim()
+    .replace(/\s+/g, " ");
   if (!normalized) {
     return "";
   }
@@ -164,10 +166,14 @@ async function buildSetupReport(cwd) {
 
   const nextSteps = [];
   if (!gemini.available) {
-    nextSteps.push("Install the Gemini CLI: https://github.com/google-gemini/gemini-cli");
+    nextSteps.push(
+      "Install the Gemini CLI: https://github.com/google-gemini/gemini-cli",
+    );
   }
   if (gemini.available && !auth.loggedIn) {
-    nextSteps.push("Configure auth: set GOOGLE_API_KEY or run `gemini auth login`.");
+    nextSteps.push(
+      "Configure auth: set GOOGLE_API_KEY or run `gemini auth login`.",
+    );
   }
 
   return {
@@ -178,14 +184,14 @@ async function buildSetupReport(cwd) {
     auth,
     reviewGateEnabled: Boolean(config.stopReviewGate),
     actionsTaken: [],
-    nextSteps
+    nextSteps,
   };
 }
 
 async function handleSetup(argv) {
   const { options } = parseCommandInput(argv, {
     valueOptions: ["cwd"],
-    booleanOptions: ["json"]
+    booleanOptions: ["json"],
   });
 
   const report = await buildSetupReport(resolveCommandCwd(options));
@@ -194,14 +200,18 @@ async function handleSetup(argv) {
 
 // --- Gemini readiness guard ---
 
-async function ensureGeminiReady(cwd) {
+async function ensureGeminiReady(_cwd) {
   const gemini = await getGeminiAvailability();
   if (!gemini.available) {
-    throw new Error("Gemini CLI is not installed. Install it and rerun `/gemini:setup`.");
+    throw new Error(
+      "Gemini CLI is not installed. Install it and rerun `/gemini:setup`.",
+    );
   }
   const auth = await getGeminiLoginStatus();
   if (!auth.loggedIn) {
-    throw new Error("Gemini CLI is not authenticated. Configure GOOGLE_API_KEY or ADC and retry.");
+    throw new Error(
+      "Gemini CLI is not authenticated. Configure GOOGLE_API_KEY or ADC and retry.",
+    );
   }
 }
 
@@ -214,7 +224,15 @@ function getJobKindLabel(kind, jobClass) {
   return jobClass === "review" ? "review" : "task";
 }
 
-function createCompanionJob({ prefix, kind, title, workspaceRoot, jobClass, summary, write = false }) {
+function createCompanionJob({
+  prefix,
+  kind,
+  title,
+  workspaceRoot,
+  jobClass,
+  summary,
+  write = false,
+}) {
   return createJobRecord({
     id: generateJobId(prefix),
     kind,
@@ -223,29 +241,35 @@ function createCompanionJob({ prefix, kind, title, workspaceRoot, jobClass, summ
     workspaceRoot,
     jobClass,
     summary,
-    write
+    write,
   });
 }
 
 function createTrackedProgress(job, options = {}) {
-  const logFile = options.logFile ?? createJobLogFile(job.workspaceRoot, job.id, job.title);
+  const logFile =
+    options.logFile ?? createJobLogFile(job.workspaceRoot, job.id, job.title);
   return {
     logFile,
     progress: createProgressReporter({
       stderr: Boolean(options.stderr),
       logFile,
-      onEvent: createJobProgressUpdater(job.workspaceRoot, job.id)
-    })
+      onEvent: createJobProgressUpdater(job.workspaceRoot, job.id),
+    }),
   };
 }
 
 async function runForegroundCommand(job, runner, options = {}) {
   const { logFile, progress } = createTrackedProgress(job, {
     logFile: options.logFile,
-    stderr: !options.json
+    stderr: !options.json,
   });
-  const execution = await runTrackedJob(job, () => runner(progress), { logFile });
-  outputResult(options.json ? execution.payload : execution.rendered, options.json);
+  const execution = await runTrackedJob(job, () => runner(progress), {
+    logFile,
+  });
+  outputResult(
+    options.json ? execution.payload : execution.rendered,
+    options.json,
+  );
   if (execution.exitStatus !== 0) {
     process.exitCode = execution.exitStatus;
   }
@@ -254,13 +278,17 @@ async function runForegroundCommand(job, runner, options = {}) {
 
 function spawnDetachedTaskWorker(cwd, jobId) {
   const scriptPath = path.join(ROOT_DIR, "scripts", "gemini-companion.mjs");
-  const child = spawn(process.execPath, [scriptPath, "task-worker", "--cwd", cwd, "--job-id", jobId], {
-    cwd,
-    env: process.env,
-    detached: true,
-    stdio: "ignore",
-    windowsHide: true
-  });
+  const child = spawn(
+    process.execPath,
+    [scriptPath, "task-worker", "--cwd", cwd, "--job-id", jobId],
+    {
+      cwd,
+      env: process.env,
+      detached: true,
+      stdio: "ignore",
+      windowsHide: true,
+    },
+  );
   child.unref();
   return child;
 }
@@ -276,7 +304,7 @@ function enqueueBackgroundTask(cwd, job, request) {
     phase: "queued",
     pid: child.pid ?? null,
     logFile,
-    request
+    request,
   };
   writeJobFile(job.workspaceRoot, job.id, queuedRecord);
   upsertJob(job.workspaceRoot, queuedRecord);
@@ -287,9 +315,9 @@ function enqueueBackgroundTask(cwd, job, request) {
       status: "queued",
       title: job.title,
       summary: job.summary,
-      logFile
+      logFile,
     },
-    logFile
+    logFile,
   };
 }
 
@@ -299,7 +327,7 @@ function buildTaskRunMetadata({ prompt }) {
   const title = "Gemini Task";
   return {
     title,
-    summary: shorten(prompt || "Task")
+    summary: shorten(prompt || "Task"),
   };
 }
 
@@ -311,7 +339,7 @@ function buildTaskJob(workspaceRoot, taskMetadata, write) {
     workspaceRoot,
     jobClass: "task",
     summary: taskMetadata.summary,
-    write
+    write,
   });
 }
 
@@ -332,14 +360,14 @@ async function executeTaskRun(request) {
     cwd: request.cwd,
     prompt: request.prompt,
     model: request.model,
-    onProgress: request.onProgress
+    onProgress: request.onProgress,
   });
 
   const rawOutput = result.output ?? "";
   const payload = {
     status: result.stopReason === "error" ? 1 : 0,
     sessionId: result.sessionId,
-    rawOutput
+    rawOutput,
   };
 
   return {
@@ -350,7 +378,7 @@ async function executeTaskRun(request) {
     summary: firstMeaningfulLine(rawOutput, "Task finished."),
     jobTitle: request.jobTitle ?? "Gemini Task",
     jobClass: "task",
-    write: Boolean(request.write)
+    write: Boolean(request.write),
   };
 }
 
@@ -358,7 +386,7 @@ async function handleTask(argv) {
   const { options, positionals } = parseCommandInput(argv, {
     valueOptions: ["model", "cwd", "prompt-file"],
     booleanOptions: ["json", "write", "background"],
-    aliasMap: { m: "model" }
+    aliasMap: { m: "model" },
   });
 
   const cwd = resolveCommandCwd(options);
@@ -376,12 +404,18 @@ async function handleTask(argv) {
   if (options.background) {
     await ensureGeminiReady(cwd);
     const job = buildTaskJob(workspaceRoot, taskMetadata, write);
-    const request = buildTaskRequest({ cwd, model, prompt, write, jobId: job.id });
+    const request = buildTaskRequest({
+      cwd,
+      model,
+      prompt,
+      write,
+      jobId: job.id,
+    });
     const { payload } = enqueueBackgroundTask(cwd, job, request);
     outputCommandResult(
       payload,
       `${payload.title} started in the background as ${payload.jobId}. Check /gemini:status ${payload.jobId} for progress.\n`,
-      options.json
+      options.json,
     );
     return;
   }
@@ -389,21 +423,30 @@ async function handleTask(argv) {
   const job = buildTaskJob(workspaceRoot, taskMetadata, write);
   await runForegroundCommand(
     job,
-    (progress) => executeTaskRun({ cwd, model, prompt, write, jobId: job.id, onProgress: progress, jobTitle: taskMetadata.title }),
-    { json: options.json }
+    (progress) =>
+      executeTaskRun({
+        cwd,
+        model,
+        prompt,
+        write,
+        jobId: job.id,
+        onProgress: progress,
+        jobTitle: taskMetadata.title,
+      }),
+    { json: options.json },
   );
 }
 
 async function handleTaskWorker(argv) {
   const { options } = parseCommandInput(argv, {
-    valueOptions: ["cwd", "job-id"]
+    valueOptions: ["cwd", "job-id"],
   });
 
   if (!options["job-id"]) {
     throw new Error("Missing required --job-id for task-worker.");
   }
 
-  const cwd = resolveCommandCwd(options);
+  const _cwd = resolveCommandCwd(options);
   const workspaceRoot = resolveCommandWorkspace(options);
   const storedJob = readStoredJob(workspaceRoot, options["job-id"]);
   if (!storedJob) {
@@ -412,17 +455,19 @@ async function handleTaskWorker(argv) {
 
   const request = storedJob.request;
   if (!request || typeof request !== "object") {
-    throw new Error(`Stored job ${options["job-id"]} is missing its task request payload.`);
+    throw new Error(
+      `Stored job ${options["job-id"]} is missing its task request payload.`,
+    );
   }
 
   const { logFile, progress } = createTrackedProgress(
     { ...storedJob, workspaceRoot },
-    { logFile: storedJob.logFile ?? null }
+    { logFile: storedJob.logFile ?? null },
   );
   await runTrackedJob(
     { ...storedJob, workspaceRoot, logFile },
     () => executeTaskRun({ ...request, onProgress: progress }),
-    { logFile }
+    { logFile },
   );
 }
 
@@ -434,7 +479,7 @@ function buildAdversarialReviewPrompt(context, focusText) {
     REVIEW_KIND: "Adversarial Review",
     TARGET_LABEL: context.target.label,
     USER_FOCUS: focusText || "No extra focus provided.",
-    REVIEW_INPUT: context.content
+    REVIEW_INPUT: context.content,
   });
 }
 
@@ -442,7 +487,7 @@ function buildReviewJobMetadata(reviewName, target) {
   return {
     kind: reviewName === "Adversarial Review" ? "adversarial-review" : "review",
     title: `Gemini ${reviewName}`,
-    summary: `${reviewName} ${target.label}`
+    summary: `${reviewName} ${target.label}`,
   };
 }
 
@@ -452,7 +497,7 @@ async function executeReviewRun(request) {
 
   const target = resolveReviewTarget(request.cwd, {
     base: request.base,
-    scope: request.scope
+    scope: request.scope,
   });
   const focusText = request.focusText?.trim() ?? "";
   const reviewName = request.reviewName ?? "Review";
@@ -464,7 +509,7 @@ async function executeReviewRun(request) {
       cwd: request.cwd,
       reviewTarget: target,
       logFile: request.logFile,
-      onProgress: request.onProgress
+      onProgress: request.onProgress,
     }));
   } else {
     const context = collectReviewContext(request.cwd, target);
@@ -475,7 +520,7 @@ async function executeReviewRun(request) {
       focusText,
       systemPrompt: prompt,
       logFile: request.logFile,
-      onProgress: request.onProgress
+      onProgress: request.onProgress,
     }));
   }
 
@@ -483,10 +528,13 @@ async function executeReviewRun(request) {
     review: reviewName,
     target,
     reviewResult,
-    stopReason
+    stopReason,
   };
 
-  const lines = [`Verdict: ${reviewResult.verdict}`, `Summary: ${reviewResult.summary}`];
+  const lines = [
+    `Verdict: ${reviewResult.verdict}`,
+    `Summary: ${reviewResult.summary}`,
+  ];
   if (reviewResult.findings?.length > 0) {
     lines.push(`Findings: ${reviewResult.findings.length}`);
     for (const finding of reviewResult.findings) {
@@ -499,7 +547,7 @@ async function executeReviewRun(request) {
       lines.push(`  - ${step}`);
     }
   }
-  const rendered = lines.join("\n") + "\n";
+  const rendered = `${lines.join("\n")}\n`;
 
   return {
     exitStatus: 0,
@@ -508,7 +556,7 @@ async function executeReviewRun(request) {
     summary: reviewResult.summary ?? `${reviewName} finished.`,
     jobTitle: `Gemini ${reviewName}`,
     jobClass: "review",
-    targetLabel: target.label
+    targetLabel: target.label,
   };
 }
 
@@ -516,13 +564,16 @@ async function handleReviewCommand(argv, config) {
   const { options, positionals } = parseCommandInput(argv, {
     valueOptions: ["base", "scope", "model", "cwd"],
     booleanOptions: ["json", "background", "wait"],
-    aliasMap: { m: "model" }
+    aliasMap: { m: "model" },
   });
 
   const cwd = resolveCommandCwd(options);
   const workspaceRoot = resolveCommandWorkspace(options);
   const focusText = positionals.join(" ").trim();
-  const target = resolveReviewTarget(cwd, { base: options.base, scope: options.scope });
+  const target = resolveReviewTarget(cwd, {
+    base: options.base,
+    scope: options.scope,
+  });
   const metadata = buildReviewJobMetadata(config.reviewName, target);
 
   const job = createCompanionJob({
@@ -531,7 +582,7 @@ async function handleReviewCommand(argv, config) {
     title: metadata.title,
     workspaceRoot,
     jobClass: "review",
-    summary: metadata.summary
+    summary: metadata.summary,
   });
 
   await runForegroundCommand(
@@ -544,9 +595,9 @@ async function handleReviewCommand(argv, config) {
         model: options.model,
         focusText,
         reviewName: config.reviewName,
-        onProgress: progress
+        onProgress: progress,
       }),
-    { json: options.json }
+    { json: options.json },
   );
 }
 
@@ -561,8 +612,14 @@ function isActiveJobStatus(status) {
 }
 
 async function waitForSingleJobSnapshot(cwd, reference, options = {}) {
-  const timeoutMs = Math.max(0, Number(options.timeoutMs) || DEFAULT_STATUS_WAIT_TIMEOUT_MS);
-  const pollIntervalMs = Math.max(100, Number(options.pollIntervalMs) || DEFAULT_STATUS_POLL_INTERVAL_MS);
+  const timeoutMs = Math.max(
+    0,
+    Number(options.timeoutMs) || DEFAULT_STATUS_WAIT_TIMEOUT_MS,
+  );
+  const pollIntervalMs = Math.max(
+    100,
+    Number(options.pollIntervalMs) || DEFAULT_STATUS_POLL_INTERVAL_MS,
+  );
   const deadline = Date.now() + timeoutMs;
   let snapshot = buildSingleJobSnapshot(cwd, reference);
 
@@ -574,14 +631,14 @@ async function waitForSingleJobSnapshot(cwd, reference, options = {}) {
   return {
     ...snapshot,
     waitTimedOut: isActiveJobStatus(snapshot.job?.status),
-    timeoutMs
+    timeoutMs,
   };
 }
 
 async function handleStatus(argv) {
   const { options, positionals } = parseCommandInput(argv, {
     valueOptions: ["cwd", "timeout-ms", "poll-interval-ms"],
-    booleanOptions: ["json", "all", "wait"]
+    booleanOptions: ["json", "all", "wait"],
   });
 
   const cwd = resolveCommandCwd(options);
@@ -591,10 +648,14 @@ async function handleStatus(argv) {
     const snapshot = options.wait
       ? await waitForSingleJobSnapshot(cwd, reference, {
           timeoutMs: options["timeout-ms"],
-          pollIntervalMs: options["poll-interval-ms"]
+          pollIntervalMs: options["poll-interval-ms"],
         })
       : buildSingleJobSnapshot(cwd, reference);
-    outputCommandResult(snapshot, renderJobStatusReport(snapshot.job), options.json);
+    outputCommandResult(
+      snapshot,
+      renderJobStatusReport(snapshot.job),
+      options.json,
+    );
     return;
   }
 
@@ -603,7 +664,10 @@ async function handleStatus(argv) {
   }
 
   const report = buildStatusSnapshot(cwd, { all: options.all });
-  outputResult(options.json ? report : renderStatusReport(report), options.json);
+  outputResult(
+    options.json ? report : renderStatusReport(report),
+    options.json,
+  );
 }
 
 // --- Result ---
@@ -611,7 +675,7 @@ async function handleStatus(argv) {
 function handleResult(argv) {
   const { options, positionals } = parseCommandInput(argv, {
     valueOptions: ["cwd"],
-    booleanOptions: ["json"]
+    booleanOptions: ["json"],
   });
 
   const cwd = resolveCommandCwd(options);
@@ -619,7 +683,11 @@ function handleResult(argv) {
   const { workspaceRoot, job } = resolveResultJob(cwd, reference);
   const storedJob = readStoredJob(workspaceRoot, job.id);
   const payload = { job, storedJob };
-  outputCommandResult(payload, renderStoredJobResult(job, storedJob), options.json);
+  outputCommandResult(
+    payload,
+    renderStoredJobResult(job, storedJob),
+    options.json,
+  );
 }
 
 // --- Cancel ---
@@ -627,7 +695,7 @@ function handleResult(argv) {
 async function handleCancel(argv) {
   const { options, positionals } = parseCommandInput(argv, {
     valueOptions: ["cwd"],
-    booleanOptions: ["json"]
+    booleanOptions: ["json"],
   });
 
   const cwd = resolveCommandCwd(options);
@@ -639,7 +707,10 @@ async function handleCancel(argv) {
   if (sessionId) {
     try {
       await interruptSession(sessionId, { cwd });
-      appendLogLine(job.logFile, `Requested Gemini session interrupt for ${sessionId}.`);
+      appendLogLine(
+        job.logFile,
+        `Requested Gemini session interrupt for ${sessionId}.`,
+      );
     } catch {
       appendLogLine(job.logFile, "Gemini session interrupt failed.");
     }
@@ -655,24 +726,28 @@ async function handleCancel(argv) {
     phase: "cancelled",
     pid: null,
     completedAt,
-    errorMessage: "Cancelled by user."
+    errorMessage: "Cancelled by user.",
   };
 
-  writeJobFile(workspaceRoot, job.id, { ...existing, ...nextJob, cancelledAt: completedAt });
+  writeJobFile(workspaceRoot, job.id, {
+    ...existing,
+    ...nextJob,
+    cancelledAt: completedAt,
+  });
   upsertJob(workspaceRoot, {
     id: job.id,
     status: "cancelled",
     phase: "cancelled",
     pid: null,
     errorMessage: "Cancelled by user.",
-    completedAt
+    completedAt,
   });
 
   const payload = {
     jobId: job.id,
     status: "cancelled",
     title: job.title,
-    sessionInterrupted: Boolean(sessionId)
+    sessionInterrupted: Boolean(sessionId),
   };
 
   outputCommandResult(payload, renderCancelReport(nextJob), options.json);
@@ -718,10 +793,12 @@ async function main() {
 }
 
 main().then(
-  () => { process.exit(process.exitCode ?? 0); },
+  () => {
+    process.exit(process.exitCode ?? 0);
+  },
   (error) => {
     const message = error instanceof Error ? error.message : String(error);
     process.stderr.write(`${message}\n`);
     process.exit(1);
-  }
+  },
 );
