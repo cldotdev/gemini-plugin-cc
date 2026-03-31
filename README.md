@@ -304,10 +304,18 @@ This way you can review the Gemini work or continue the work there.
 ### Running Tests
 
 ```bash
-npm test
+pnpm test
 ```
 
 This runs all test files in the `tests/` directory using Node's built-in test runner.
+
+### All checks
+
+```bash
+pnpm run ci
+```
+
+Runs type checking, linting, and tests.
 
 ### Project Structure
 
