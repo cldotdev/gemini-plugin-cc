@@ -150,17 +150,22 @@ export class AcpClient {
     const { phase1Ms = 100, phase2Ms = 1500 } = opts;
     if (this.#closed) return;
     this.#closed = true;
+    try { this.#rl.close(); } catch {}
     try { this.#proc.stdin.end(); } catch {}
     await new Promise((resolve) => {
+      const finish = () => {
+        try { this.#proc.stdout.destroy(); } catch {}
+        resolve();
+      };
       const t1 = setTimeout(() => {
         try { this.#proc.kill("SIGTERM"); } catch {}
         const t2 = setTimeout(() => {
           try { this.#proc.kill("SIGKILL"); } catch {}
-          resolve();
+          finish();
         }, phase2Ms);
-        this.#proc.once("exit", () => { clearTimeout(t2); resolve(); });
+        this.#proc.once("exit", () => { clearTimeout(t2); finish(); });
       }, phase1Ms);
-      this.#proc.once("exit", () => { clearTimeout(t1); resolve(); });
+      this.#proc.once("exit", () => { clearTimeout(t1); finish(); });
     });
   }
 
