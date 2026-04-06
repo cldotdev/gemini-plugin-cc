@@ -13,6 +13,11 @@ export class AcpClient {
 
   constructor(proc) {
     this.#proc = proc;
+    // Suppress EPIPE and other stdin write errors. In Node.js, stream errors
+    // are emitted as events, not thrown synchronously — without this handler
+    // they become uncaught exceptions and crash the process. Pending promise
+    // rejection when the process dies is handled by #onExit.
+    proc.stdin.on("error", () => {});
     this.#rl = readline.createInterface({
       input: proc.stdout,
       crlfDelay: Infinity,

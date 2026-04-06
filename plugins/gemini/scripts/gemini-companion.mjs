@@ -33,6 +33,7 @@ import { interpolateTemplate, loadPromptTemplate } from "./lib/prompts.mjs";
 import {
   renderCancelReport,
   renderJobStatusReport,
+  renderReviewResult,
   renderSetupReport,
   renderStatusReport,
   renderStoredJobResult,
@@ -518,28 +519,13 @@ async function executeReviewRun(request) {
     stopReason,
   };
 
-  const lines = [
-    `Verdict: ${reviewResult.verdict}`,
-    `Summary: ${reviewResult.summary}`,
-  ];
-  if (reviewResult.findings?.length > 0) {
-    lines.push(`Findings: ${reviewResult.findings.length}`);
-    for (const finding of reviewResult.findings) {
-      lines.push(`  [${finding.severity}] ${finding.title}`);
-    }
-  }
-  if (reviewResult.next_steps?.length > 0) {
-    lines.push("Next steps:");
-    for (const step of reviewResult.next_steps) {
-      lines.push(`  - ${step}`);
-    }
-  }
-  const rendered = `${lines.join("\n")}\n`;
-
   return {
     exitStatus: 0,
     payload,
-    rendered,
+    rendered: renderReviewResult(
+      { parsed: reviewResult },
+      { reviewLabel: reviewName, targetLabel: target.label },
+    ),
     summary: reviewResult.summary ?? `${reviewName} finished.`,
     jobTitle: `Gemini ${reviewName}`,
     jobClass: "review",
@@ -799,6 +785,19 @@ main().then(
           lines.push(`- --model ${s}`);
         }
       }
+      process.stderr.write(`${lines.join("\n")}\n`);
+    } else if (error?.code === "ACP_PROCESS_EXIT") {
+      const lines = [
+        `# Gemini Error`,
+        ``,
+        `The Gemini ACP process exited unexpectedly (code ${error.exitCode ?? "unknown"}).`,
+        ``,
+        `This can happen when multiple Gemini sessions are already running and the`,
+        `CLI cannot initialize a new one. Cancel active jobs or wait for them to finish:`,
+        ``,
+        `  /gemini:status   — see what is running`,
+        `  /gemini:cancel   — cancel a specific job`,
+      ];
       process.stderr.write(`${lines.join("\n")}\n`);
     } else {
       const message = error instanceof Error ? error.message : String(error);
