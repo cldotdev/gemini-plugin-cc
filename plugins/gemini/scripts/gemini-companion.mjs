@@ -42,8 +42,8 @@ import {
 import {
   generateJobId,
   getConfig,
-  resolveStateDir,
   listJobs,
+  resolveStateDir,
   upsertJob,
   writeJobFile,
 } from "./lib/state.mjs";
@@ -572,7 +572,10 @@ async function handleLastReview(argv) {
   } catch {}
   const available = content !== null;
   if (options.json) {
-    outputResult(available ? { available: true, content } : { available: false }, true);
+    outputResult(
+      available ? { available: true, content } : { available: false },
+      true,
+    );
   } else if (available) {
     process.stdout.write(content);
   }
