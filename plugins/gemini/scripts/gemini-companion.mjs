@@ -557,7 +557,9 @@ function saveLastReview(workspaceRoot, content) {
       encoding: "utf8",
       mode: 0o600,
     });
-  } catch {}
+  } catch {
+    // best-effort: save failure must not block review output
+  }
 }
 
 async function handleLastReview(argv) {
@@ -569,7 +571,9 @@ async function handleLastReview(argv) {
   let content = null;
   try {
     content = fs.readFileSync(resolveLastReviewPath(workspaceRoot), "utf8");
-  } catch {}
+  } catch {
+    // missing or unreadable file is treated as "not available"
+  }
   const available = content !== null;
   if (options.json) {
     outputResult(
