@@ -1,18 +1,23 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  ACP_INIT_TIMEOUT_MS,
   clearFlagCache,
   createSession,
   detectAcpFlag,
   isAlive,
   spawnAcpClient,
 } from "../plugins/gemini/scripts/lib/acp-lifecycle.mjs";
-import { buildEnv, installFakeGemini } from "./fake-gemini-fixture.mjs";
+import {
+  buildEnv,
+  FAKE_GEMINI_BEHAVIOR,
+  installFakeGemini,
+} from "./fake-gemini-fixture.mjs";
 import { makeTempDir } from "./helpers.mjs";
 
 test("detectAcpFlag returns --acp for gemini >= 0.33.0", async () => {
   const binDir = makeTempDir();
-  installFakeGemini(binDir, "task-ok"); // fake reports 0.33.0
+  installFakeGemini(binDir, FAKE_GEMINI_BEHAVIOR.TASK_OK);
   clearFlagCache();
   const origPath = process.env.PATH;
   process.env.PATH = `${binDir}:${origPath}`;
@@ -27,7 +32,7 @@ test("detectAcpFlag returns --acp for gemini >= 0.33.0", async () => {
 
 test("spawnAcpClient connects and completes initialize handshake", async () => {
   const binDir = makeTempDir();
-  installFakeGemini(binDir, "task-ok");
+  installFakeGemini(binDir, FAKE_GEMINI_BEHAVIOR.TASK_OK);
   clearFlagCache();
   const client = await spawnAcpClient({ env: buildEnv(binDir) });
   assert.ok(client.pid > 0);
@@ -37,7 +42,7 @@ test("spawnAcpClient connects and completes initialize handshake", async () => {
 
 test("isAlive returns true for a live client", async () => {
   const binDir = makeTempDir();
-  installFakeGemini(binDir, "task-ok");
+  installFakeGemini(binDir, FAKE_GEMINI_BEHAVIOR.TASK_OK);
   clearFlagCache();
   const client = await spawnAcpClient({ env: buildEnv(binDir) });
   assert.equal(isAlive(client), true);
@@ -46,10 +51,33 @@ test("isAlive returns true for a live client", async () => {
 
 test("createSession returns a non-empty sessionId", async () => {
   const binDir = makeTempDir();
-  installFakeGemini(binDir, "task-ok");
+  installFakeGemini(binDir, FAKE_GEMINI_BEHAVIOR.TASK_OK);
   clearFlagCache();
   const { client, sessionId } = await createSession({ env: buildEnv(binDir) });
   assert.equal(typeof sessionId, "string");
   assert.ok(sessionId.length > 0);
   await client.shutdown();
+});
+
+test("ACP_INIT_TIMEOUT_MS defaults to 30s", () => {
+  assert.equal(ACP_INIT_TIMEOUT_MS, 30_000);
+});
+
+test("spawnAcpClient times out and kills the child when gemini never responds to initialize", async () => {
+  const binDir = makeTempDir();
+  installFakeGemini(binDir, FAKE_GEMINI_BEHAVIOR.INIT_HANG);
+  clearFlagCache();
+
+  const prev = process.env.GEMINI_ACP_INIT_TIMEOUT_MS;
+  process.env.GEMINI_ACP_INIT_TIMEOUT_MS = "100";
+  try {
+    await assert.rejects(
+      () => spawnAcpClient({ env: buildEnv(binDir) }),
+      /ACP initialize timed out/,
+    );
+    // If the child leaks, the event loop stays open and this test hangs.
+  } finally {
+    if (prev === undefined) delete process.env.GEMINI_ACP_INIT_TIMEOUT_MS;
+    else process.env.GEMINI_ACP_INIT_TIMEOUT_MS = prev;
+  }
 });
