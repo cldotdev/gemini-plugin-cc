@@ -13,6 +13,11 @@ export class AcpClient {
 
   constructor(proc) {
     this.#proc = proc;
+    // Handle EPIPE and other stdin write errors. In Node.js, stream errors are
+    // emitted as events, not thrown synchronously — without this handler they
+    // become uncaught exceptions and crash the process. Calling #onExit drains
+    // any pending promises; it's idempotent via the #closed guard.
+    proc.stdin.on("error", () => this.#onExit(1));
     this.#rl = readline.createInterface({
       input: proc.stdout,
       crlfDelay: Infinity,
@@ -138,8 +143,8 @@ export class AcpClient {
     return this.#request("session/new", { cwd, mcpServers });
   }
 
-  async loadSession(sessionId, cwd) {
-    return this.#request("session/load", { sessionId, cwd });
+  async loadSession(sessionId, cwd, mcpServers = []) {
+    return this.#request("session/load", { sessionId, cwd, mcpServers });
   }
 
   async prompt(sessionId, parts) {
