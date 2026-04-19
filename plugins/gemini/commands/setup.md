@@ -18,5 +18,8 @@ If Gemini is installed but not authenticated:
 - Tell the user to set the `GOOGLE_API_KEY` environment variable or configure Application Default Credentials.
 - Preserve any guidance in the setup output.
 
+If setup passes but `/gemini:review`, `/gemini:rescue`, or `/gemini:task` fail with "ACP initialize timed out":
+- Tell the user to set `GEMINI_ACP_INIT_TIMEOUT_MS` to a higher value (e.g. `60000`). Common on Homebrew installs where keytar falls back to a file-based keychain.
+
 Output rules:
 - Present the final setup output to the user.

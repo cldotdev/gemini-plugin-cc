@@ -6,11 +6,14 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { installFakeGemini } from "./fake-gemini-fixture.mjs";
+import {
+  FAKE_GEMINI_BEHAVIOR,
+  installFakeGemini,
+} from "./fake-gemini-fixture.mjs";
 
 test("smoke test -- --version flag works", () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "fg-test-"));
-  installFakeGemini(dir, "task-ok");
+  installFakeGemini(dir, FAKE_GEMINI_BEHAVIOR.TASK_OK);
   const result = spawnSync("node", [path.join(dir, "gemini"), "--version"], {
     encoding: "utf8",
   });

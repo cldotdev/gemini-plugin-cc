@@ -3,7 +3,20 @@ import path from "node:path";
 
 import { writeExecutable } from "./helpers.mjs";
 
-export function installFakeGemini(binDir, behavior = "task-ok") {
+export const FAKE_GEMINI_BEHAVIOR = Object.freeze({
+  TASK_OK: "task-ok",
+  REVIEW_OK: "review-ok",
+  SESSION_LOAD: "session-load",
+  CRASH: "crash",
+  HANG: "hang",
+  PERMISSION: "permission",
+  INIT_HANG: "init-hang",
+});
+
+export function installFakeGemini(
+  binDir,
+  behavior = FAKE_GEMINI_BEHAVIOR.TASK_OK,
+) {
   const statePath = path.join(binDir, "fake-gemini-state.json");
   const scriptPath = path.join(binDir, "gemini");
   const source = `#!/usr/bin/env node
@@ -12,6 +25,7 @@ const readline = require("node:readline");
 
 const STATE_PATH = ${JSON.stringify(statePath)};
 const BEHAVIOR = ${JSON.stringify(behavior)};
+const B = ${JSON.stringify(FAKE_GEMINI_BEHAVIOR)};
 
 function loadState() {
   if (!fs.existsSync(STATE_PATH)) {
@@ -75,6 +89,7 @@ rl.on("line", (line) => {
   try {
     switch (message.method) {
       case "initialize":
+        if (BEHAVIOR === B.INIT_HANG) break; // swallow request, never reply
         send({ id: message.id, result: { protocolVersion: 1, agentCapabilities: {}, agentInfo: { name: "fake-gemini", version: "0.33.0" } } });
         break;
 
@@ -95,7 +110,7 @@ rl.on("line", (line) => {
         }
         fs.writeFileSync(STATE_PATH, JSON.stringify(st, null, 2));
         send({ id: message.id, result: { sessionId } });
-        if (BEHAVIOR === "session-load") {
+        if (BEHAVIOR === B.SESSION_LOAD) {
           send({ method: "session/update", params: { sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Resuming from history." } } } });
         }
         break;
@@ -127,16 +142,15 @@ rl.on("line", (line) => {
         st.prompts.push({ sessionId, text });
         fs.writeFileSync(STATE_PATH, JSON.stringify(st, null, 2));
 
-        if (BEHAVIOR === "crash") {
+        if (BEHAVIOR === B.CRASH) {
           process.exit(1);
         }
 
-        if (BEHAVIOR === "hang") {
-          // Never respond
-          break;
+        if (BEHAVIOR === B.HANG) {
+          break; // never respond
         }
 
-        if (BEHAVIOR === "permission") {
+        if (BEHAVIOR === B.PERMISSION) {
           send({
             id: 9999,
             method: "session/request_permission",
@@ -164,14 +178,14 @@ rl.on("line", (line) => {
           break;
         }
 
-        if (BEHAVIOR === "review-ok" || BEHAVIOR === "session-load") {
+        if (BEHAVIOR === B.REVIEW_OK || BEHAVIOR === B.SESSION_LOAD) {
           const reviewJson = JSON.stringify({ verdict: "no-issues", summary: "No issues found.", findings: [], next_steps: [] });
           send({ method: "session/update", params: { sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: reviewJson } } } });
           send({ id: message.id, result: { stopReason: "end_turn" } });
           break;
         }
 
-        // Default: task-ok
+        // default falls through as TASK_OK
         send({ method: "session/update", params: { sessionId, update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Task complete." } } } });
         send({ id: message.id, result: { stopReason: "end_turn" } });
         break;

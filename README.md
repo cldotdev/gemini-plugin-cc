@@ -59,6 +59,13 @@ After install, you should see:
 - the slash commands listed below
 - the `gemini:gemini-rescue` subagent in `/agents`
 
+## Configuration
+
+| Variable | Purpose |
+|---|---|
+| `GOOGLE_API_KEY` | API key from AI Studio. Alternative to `gcloud auth application-default login`. |
+| `GEMINI_ACP_INIT_TIMEOUT_MS` | Override the 30s ACP initialize timeout. Bump it if Gemini CLI cold-start is slow on your machine (e.g. Homebrew installs that fall back to a file-based keychain). |
+
 ## Commands
 
 | Command | Description |

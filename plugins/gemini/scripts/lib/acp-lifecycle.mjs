@@ -3,6 +3,19 @@ import { spawn } from "node:child_process";
 import { AcpClient, installDefaultHandlers } from "./acp-client.mjs";
 import { runCommand } from "./process.mjs";
 
+/** Default timeout for the ACP initialize handshake (ms). */
+export const ACP_INIT_TIMEOUT_MS = 30_000;
+
+/** Read GEMINI_ACP_INIT_TIMEOUT_MS from the given env, falling back to the default. */
+function resolveInitTimeoutMs(env = process.env) {
+  const override = env.GEMINI_ACP_INIT_TIMEOUT_MS;
+  if (override) {
+    const parsed = Number.parseInt(override, 10);
+    if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  }
+  return ACP_INIT_TIMEOUT_MS;
+}
+
 // Cache detected flag per binary to avoid repeated --version calls
 const flagCache = new Map();
 
@@ -42,6 +55,8 @@ export function clearFlagCache() {
 
 /**
  * Spawn a new gemini --acp process, complete the initialize handshake, return connected AcpClient.
+ * Timeout defaults to ACP_INIT_TIMEOUT_MS; override via GEMINI_ACP_INIT_TIMEOUT_MS env var.
+ * On timeout, the spawned process is killed and the error is rethrown.
  * @param {object} [opts]
  * @param {string} [opts.binary="gemini"]
  * @param {string} [opts.cwd]
@@ -52,6 +67,7 @@ export async function spawnAcpClient(opts = {}) {
   const binary = opts.binary ?? "gemini";
   const cwd = opts.cwd ?? process.cwd();
   const env = opts.env ?? process.env;
+  const initTimeoutMs = resolveInitTimeoutMs(env);
 
   const flag = await detectAcpFlag(binary);
 
@@ -64,13 +80,31 @@ export async function spawnAcpClient(opts = {}) {
   const client = new AcpClient(proc);
   installDefaultHandlers(client);
 
-  const initTimeout = new Promise((_, reject) =>
-    setTimeout(
-      () => reject(new Error("ACP initialize timed out after 10s")),
-      10000,
-    ),
-  );
-  await Promise.race([client.initialize(), initTimeout]);
+  const initPromise = client.initialize();
+  // killImmediately() rejects this promise on timeout; mark it handled so it
+  // doesn't surface as an unhandledRejection.
+  initPromise.catch(() => {});
+
+  /** @type {ReturnType<typeof setTimeout> | undefined} */
+  let timeoutHandle;
+  const initTimeout = new Promise((_, reject) => {
+    timeoutHandle = setTimeout(
+      () =>
+        reject(
+          new Error(`ACP initialize timed out after ${initTimeoutMs / 1000}s`),
+        ),
+      initTimeoutMs,
+    );
+  });
+
+  try {
+    await Promise.race([initPromise, initTimeout]);
+  } catch (err) {
+    client.killImmediately(err);
+    throw err;
+  } finally {
+    clearTimeout(timeoutHandle);
+  }
 
   return client;
 }

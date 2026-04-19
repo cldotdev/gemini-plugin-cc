@@ -170,6 +170,35 @@ export class AcpClient {
     return this.#request("session/list", { cwd });
   }
 
+  /**
+   * SIGKILL the child and reject pending requests. For cleanup after a failed init.
+   * @param {Error|string} [reason]
+   */
+  killImmediately(reason) {
+    if (this.#closed) return;
+    this.#closed = true;
+    const err =
+      reason instanceof Error
+        ? reason
+        : new Error(reason ?? "ACP client killed");
+    for (const { reject } of this.#pending.values()) {
+      reject(err);
+    }
+    this.#pending.clear();
+    try {
+      this.#rl.close(); // already closed if process exited
+    } catch {}
+    try {
+      this.#proc.stdin.end(); // EPIPE if child already died
+    } catch {}
+    try {
+      this.#proc.stdout.destroy();
+    } catch {}
+    try {
+      this.#proc.kill("SIGKILL"); // ESRCH if already reaped
+    } catch {}
+  }
+
   async shutdown(opts = {}) {
     const { phase1Ms = 100, phase2Ms = 1500 } = opts;
     if (this.#closed) return;

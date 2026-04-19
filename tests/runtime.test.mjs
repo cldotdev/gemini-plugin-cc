@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   buildEnv,
+  FAKE_GEMINI_BEHAVIOR,
   installFakeGemini,
   readFakeState,
 } from "./fake-gemini-fixture.mjs";
@@ -17,7 +18,7 @@ const SCRIPT = path.join(PLUGIN_ROOT, "scripts", "gemini-companion.mjs");
 
 test("setup reports ready when fake gemini is installed", () => {
   const binDir = makeTempDir();
-  installFakeGemini(binDir, "task-ok");
+  installFakeGemini(binDir, FAKE_GEMINI_BEHAVIOR.TASK_OK);
 
   const result = run("node", [SCRIPT, "setup", "--json"], {
     cwd: ROOT,
@@ -37,7 +38,7 @@ test("task runs and captures output", () => {
   const repo = makeTempDir();
   const binDir = makeTempDir();
   const statePath = path.join(binDir, "fake-gemini-state.json");
-  installFakeGemini(binDir, "task-ok");
+  installFakeGemini(binDir, FAKE_GEMINI_BEHAVIOR.TASK_OK);
   initGitRepo(repo);
 
   const result = run("node", [SCRIPT, "task", "Do the thing"], {
@@ -54,7 +55,7 @@ test("task runs and captures output", () => {
 test("review completes with no-issues result", () => {
   const repo = makeTempDir();
   const binDir = makeTempDir();
-  installFakeGemini(binDir, "review-ok");
+  installFakeGemini(binDir, FAKE_GEMINI_BEHAVIOR.REVIEW_OK);
   initGitRepo(repo);
   fs.writeFileSync(path.join(repo, "foo.js"), "const x = 1;\n");
   run("git", ["add", "foo.js"], { cwd: repo });
@@ -82,7 +83,7 @@ test("review completes with no-issues result", () => {
 test("status lists jobs after a task", () => {
   const repo = makeTempDir();
   const binDir = makeTempDir();
-  installFakeGemini(binDir, "task-ok");
+  installFakeGemini(binDir, FAKE_GEMINI_BEHAVIOR.TASK_OK);
   initGitRepo(repo);
   const env = buildEnv(binDir);
 
