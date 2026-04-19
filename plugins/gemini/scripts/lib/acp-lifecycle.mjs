@@ -6,9 +6,9 @@ import { runCommand } from "./process.mjs";
 /** Default timeout for the ACP initialize handshake (ms). */
 export const ACP_INIT_TIMEOUT_MS = 30_000;
 
-/** Override via GEMINI_ACP_INIT_TIMEOUT_MS env var for slow machines. */
-function resolveInitTimeoutMs() {
-  const override = process.env.GEMINI_ACP_INIT_TIMEOUT_MS;
+/** Read GEMINI_ACP_INIT_TIMEOUT_MS from the given env, falling back to the default. */
+function resolveInitTimeoutMs(env = process.env) {
+  const override = env.GEMINI_ACP_INIT_TIMEOUT_MS;
   if (override) {
     const parsed = Number.parseInt(override, 10);
     if (Number.isFinite(parsed) && parsed > 0) return parsed;
@@ -67,7 +67,7 @@ export async function spawnAcpClient(opts = {}) {
   const binary = opts.binary ?? "gemini";
   const cwd = opts.cwd ?? process.cwd();
   const env = opts.env ?? process.env;
-  const initTimeoutMs = resolveInitTimeoutMs();
+  const initTimeoutMs = resolveInitTimeoutMs(env);
 
   const flag = await detectAcpFlag(binary);
 

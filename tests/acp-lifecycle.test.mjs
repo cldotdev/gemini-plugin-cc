@@ -67,17 +67,10 @@ test("spawnAcpClient times out and kills the child when gemini never responds to
   const binDir = makeTempDir();
   installFakeGemini(binDir, FAKE_GEMINI_BEHAVIOR.INIT_HANG);
   clearFlagCache();
-
-  const prev = process.env.GEMINI_ACP_INIT_TIMEOUT_MS;
-  process.env.GEMINI_ACP_INIT_TIMEOUT_MS = "100";
-  try {
-    await assert.rejects(
-      () => spawnAcpClient({ env: buildEnv(binDir) }),
-      /ACP initialize timed out/,
-    );
-    // If the child leaks, the event loop stays open and this test hangs.
-  } finally {
-    if (prev === undefined) delete process.env.GEMINI_ACP_INIT_TIMEOUT_MS;
-    else process.env.GEMINI_ACP_INIT_TIMEOUT_MS = prev;
-  }
+  const env = buildEnv(binDir, { GEMINI_ACP_INIT_TIMEOUT_MS: "100" });
+  await assert.rejects(
+    () => spawnAcpClient({ env }),
+    /ACP initialize timed out/,
+  );
+  // If the child leaks, the event loop stays open and this test hangs.
 });
