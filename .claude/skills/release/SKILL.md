@@ -1,7 +1,6 @@
 ---
 name: release
 description: Trigger the CI release pipeline for gemini-plugin-cc. Maintainer-only.
-disable-model-invocation: true
 argument-hint: patch|minor|major
 allowed-tools: Bash(gh workflow run *) Bash(gh run *) Bash(gh api *)
 ---
@@ -22,7 +21,7 @@ Do not run any commands.
 
 With a valid bump type, run:
 
-```
+```text
 gh workflow run release-draft.yml -f bump=$ARGUMENTS
 ```
 
@@ -36,7 +35,7 @@ Stop.
 
 On success, wait a moment, then run:
 
-```
+```text
 gh run list --workflow=release-draft.yml --limit=1 --json databaseId,url,status
 ```
 

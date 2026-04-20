@@ -34,20 +34,16 @@ test("setup.md references gemini-companion.mjs", () => {
   assert.ok(readCommand("setup").includes("gemini-companion.mjs"));
 });
 
-test("review.md has disable-model-invocation: true", () => {
-  assert.ok(readCommand("review").includes("disable-model-invocation: true"));
+test("review.md does not have disable-model-invocation", () => {
+  assert.ok(!readCommand("review").includes("disable-model-invocation"));
 });
 
-test("adversarial-review.md has disable-model-invocation: true", () => {
-  assert.ok(
-    readCommand("adversarial-review").includes(
-      "disable-model-invocation: true",
-    ),
-  );
+test("adversarial-review.md does not have disable-model-invocation", () => {
+  assert.ok(!readCommand("adversarial-review").includes("disable-model-invocation"));
 });
 
-test("task.md has disable-model-invocation: true", () => {
-  assert.ok(readCommand("task").includes("disable-model-invocation: true"));
+test("task.md does not have disable-model-invocation", () => {
+  assert.ok(!readCommand("task").includes("disable-model-invocation"));
 });
 
 test("review.md instructs returning output verbatim", () => {
